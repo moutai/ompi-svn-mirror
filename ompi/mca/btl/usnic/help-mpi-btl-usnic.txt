@@ -1,0 +1,70 @@
+# -*- text -*-
+#
+# Copyright (c) 2012 Cisco Systems, Inc.  All rights reserved.
+#
+# $COPYRIGHT$
+#
+# Additional copyrights may follow
+#
+# $HEADER$
+#
+# This is the US/English help file for the Open MPI udverbs BTL.
+#
+[ibv_query_gid failed]
+Open MPI failed to query the GID of a port on an OpenFabrics device.
+This is unusual and shouldn't happen.  It suggests that there may be
+something wrong with the OpenFabrics configuration on this node.
+
+Open MPI will skip this device/port in the udverbs BTL, which may result
+in either lower performance or your job aborting.
+
+  Local host:      %s
+  Device:          %s
+  Port:            %d
+  Failed function: ibv_query_gid()
+#
+[ibv_query_device failed]
+Open MPI failed to query an OpenFabrics device.  This is unusual and
+shouldn't happen.  It suggests that there may be something wrong with
+the OpenFabrics configuration on this node.
+
+Open MPI will skip this device/port in the udverbs BTL, which may result
+in either lower performance or your job aborting.
+
+  Local host:      %s
+  Device:          %s
+  Port:            %d
+  Failed function: ibv_query_device()
+#
+[verbs_port_bw failed]
+Open MPI failed to query the supported bandwidth of a port on an
+OpenFabrics device.  This is unusual and shouldn't happen.  It
+suggests that there may be something wrong with the OpenFabrics
+configuration on this node.
+
+Open MPI will skip this device/port in the udverbs BTL, which may result
+in either lower performance or your job aborting.
+
+  Local host: %s
+  Device:     %s
+  Port:       %d
+#
+[eager_limit too high]
+The eager_limit in the udverbs BTL is too high for a device that Open
+MPI tried to use.  The udverbs BTL eager_limit value is the largest
+message payload that Open MPI will send in a single datagram.  
+
+You are seeing this message because the eager_limit was set to a value
+larger than the MPI message payload capacity of a single UD datagram.
+The max payload size is smaller than the size of individual datagrams
+because each datagram also contains MPI control metadata, meaning that
+the some bytes in the datagram must be reserved for overhead.
+
+Open MPI will skip this device/port in the udverbs BTL, which may result
+in either lower performance or your job aborting.
+
+  Local host:            %s
+  Device:                %s
+  Port:                  %d
+  Max payload allowed:   %d
+  Specified eager_limit: %d
