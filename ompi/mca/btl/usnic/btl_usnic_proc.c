@@ -161,9 +161,28 @@ ompi_btl_usnic_proc_lookup_endpoint(ompi_btl_usnic_module_t *receiver,
        that we can reach.  For the moment, do the same test as in
        proc_insert: check to see if we have compatible IPv4
        networks. */
+    /* JMS This is essentially duplicated code (see proc_insert,
+       below) -- should figure out how subroutine-ize this
+       functionality. */
+    mynet = receiver->if_ipv4_addr;
+    for (i = 0, mask = ~0; i < (32 - receiver->if_cidrmask); ++i, mask >>= 1) {
+        continue;
+    }
+    mynet &= mask;
 
     for (i = 0; i < proc->proc_endpoint_count; ++i) {
-#error still need to write this code -- just look at subnet?
+        endpoint = proc->proc_endpoints[i];
+        peernet = endpoint->endpoint_remote_addr.ipv4_addr;
+        for (j = 0, mask = ~0; j < (32 - endpoint->endpoint_remote_addr.cidrmask);
+             ++j, mask >>= 1) {
+            continue;
+        }
+        peernet &= mask;
+
+        /* If we match, we're done */
+        if (mynet == peernet) {
+            return endpoint;
+        }
     }
 
     /* Didn't find it */
@@ -272,9 +291,44 @@ int ompi_btl_usnic_proc_insert(ompi_btl_usnic_module_t *module,
        no other local module is using.  See if we can find an unused
        address that's on this module's subnet. */
     for (i = 0; i < proc->proc_modex_count; ++i) {
-        if (!proc->proc_modex_claimed[i] &&
-            proc->proc_modex[i].subnet == module->addr.subnet) {
-            break;
+        if (!proc->proc_modex_claimed[i]) {
+            char my_ip_string[32], peer_ip_string[32];
+            uint32_t j, mask, mynet, peernet;
+
+            inet_ntop(AF_INET, &module->if_ipv4_addr,
+                      my_ip_string, sizeof(my_ip_string));
+            inet_ntop(AF_INET, &proc->proc_modex[i].ipv4_addr,
+                      peer_ip_string, sizeof(peer_ip_string));
+            opal_output_verbose(5, mca_btl_base_output, "btl:udverbs:proc_insert: checking my IP address/subnet (%s/%d) vs. peer (%s/%d)\n",
+                        my_ip_string, module->if_cidrmask,
+                        peer_ip_string, proc->proc_modex[i].cidrmask);
+
+            /* JMS For the moment, do an abbreviated comparison.  Just
+               compare the CIDR-masked IP address to see if they're on
+               the same network.  If so, we're good.  Need to
+               eventually replace this with the same type of IP
+               address matching that is in the TCP BTL (probably want
+               to move that routine down to opal/util/if.c...?) */
+            /* JMS mynet is loop invariant */
+            mynet = module->if_ipv4_addr;
+            for (j = 0, mask = ~0; j < (32 - module->if_cidrmask); 
+                 ++j, mask >>= 1) {
+                continue;
+            }
+            mynet &= mask;
+
+            peernet = proc->proc_modex[i].ipv4_addr;
+            for (j = 0, mask = ~0; j < (32 - proc->proc_modex[i].cidrmask);
+                 ++j, mask >>= 1) {
+                continue;
+            }
+            peernet &= mask;
+
+            /* If we match, we're done */
+            if (mynet == peernet) {
+                opal_output_verbose(5, mca_btl_base_output, "btl:udverbs:proc_insert: IP networks match -- yay!\n");
+                break;
+            }
         }
     }
 

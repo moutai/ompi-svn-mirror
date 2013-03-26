@@ -35,9 +35,11 @@ BEGIN_C_DECLS
 
 typedef struct ompi_btl_usnic_addr_t {
     uint32_t qp_num;
-    uint32_t psn;
     uint64_t subnet;
-    uint16_t lid;
+
+    union ibv_gid gid;
+    uint32_t ipv4_addr;
+    uint32_t cidrmask;
 } ompi_btl_usnic_addr_t;
 
 

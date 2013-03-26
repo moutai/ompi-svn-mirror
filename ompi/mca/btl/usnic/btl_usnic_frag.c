@@ -70,22 +70,7 @@ static void send_frag_constructor(ompi_btl_usnic_frag_t* frag)
     frag->base.des_dst_cnt = 0;
 
     frag->protocol_header = frag->base.super.ptr;
-#if BTL_USNIC_USNIC
-    /* For USNIC, fill in the ethertype, and set the BTL header to be
-       beyond the L2 header */
-    /* JMS It would be good to fill in the src MAC here, too, but we
-       don't have the module to do so. :-( */
-    frag->protocol_header->l2_ethertype = 
-        htons(mca_btl_usnic_component.ethertype);
-    frag->btl_header = 
-        (ompi_btl_usnic_btl_header_t *) (frag->protocol_header + 1);
-#else
-    /* For IB UD, the (send) protocol header is not visible here in
-       userspace, so we set the BTL header is at the same location as
-       the protocol header (because the protocol header is
-       [effectively] of length 0). */
     frag->btl_header = (ompi_btl_usnic_btl_header_t *) frag->protocol_header;
-#endif
     frag->btl_header->sender = 
         mca_btl_usnic_component.my_hashed_orte_name;
 
@@ -127,12 +112,9 @@ static void recv_frag_constructor(ompi_btl_usnic_frag_t* frag)
     frag->base.des_src_cnt = 0;
 
     frag->protocol_header = frag->base.super.ptr;
-    /* Both USNIC and IB have a protocol header in received datagrams:
-
-       - USNIC: L2 framing info (dest MAC, src MAC, ethertype)
-       - IB: 40-byte global resource header (GRH)
-
-       The BTL header is beyond this protocol header in both cases */
+    /* UD messages have a 40-byte global resource header (GRH) in
+       received datagrams.  The BTL header is beyond this protocol
+       header. */
     frag->btl_header = 
         (ompi_btl_usnic_btl_header_t *) (frag->protocol_header + 1);
     frag->payload.raw = (uint8_t *) (frag->btl_header + 1);

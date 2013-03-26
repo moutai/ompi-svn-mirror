@@ -125,7 +125,6 @@ static int usnic_add_procs(struct mca_btl_base_module_t* base_module,
            and actually zero out all the fields that we don't care
            about / want to be logically false. */
         memset(&ah_attr, 0, sizeof(ah_attr));
-        ah_attr.dlid = usnic_endpoint->endpoint_remote_addr.lid;
         ah_attr.sl = mca_btl_usnic_component.verbs_service_level;
         ah_attr.src_path_bits = mca_btl_usnic_component.verbs_src_path_bits;
         ah_attr.port_num = module->port_num;
@@ -139,10 +138,8 @@ static int usnic_add_procs(struct mca_btl_base_module_t* base_module,
             continue;
         }
 
-        BTL_VERBOSE(("new usnic peer: QP num %d, PSN = %d, LID = %d, subnet = %" PRIx64,
+        BTL_VERBOSE(("new usnic peer: QP num %d, subnet = %" PRIx64,
                      usnic_endpoint->endpoint_remote_addr.qp_num, 
-                     usnic_endpoint->endpoint_remote_addr.psn, 
-                     usnic_endpoint->endpoint_remote_addr.lid,
                      usnic_endpoint->endpoint_remote_addr.subnet));
 
         opal_bitmap_set_bit(reachable, i);
@@ -640,7 +637,7 @@ static int init_qp(ompi_btl_usnic_module_t* module)
     module->qp = ibv_create_qp(module->pd, &qp_init_attr);
     if (NULL == module->qp) {
         BTL_ERROR(("error creating QP: %s\n", strerror(errno)));
-        return OMPI_ERROR;
+        return OMPI_ERR_OUT_OF_RESOURCE;
     }
 
     /* memset to both silence valgrind warnings (since the attr struct
@@ -659,7 +656,7 @@ static int init_qp(ompi_btl_usnic_module_t* module)
         BTL_ERROR(("error modifying QP to INIT: %s", strerror(errno)));
         ibv_destroy_qp(module->qp);
         module->qp = NULL;
-        return OMPI_ERROR;
+        return OMPI_ERR_TEMP_OUT_OF_RESOURCE;
     }
 
     return OMPI_SUCCESS;
@@ -690,8 +687,7 @@ static int move_qp_to_rts(ompi_btl_usnic_module_t* module)
     memset(&qp_attr, 0, sizeof(qp_attr));
 
     qp_attr.qp_state = IBV_QPS_RTS;
-    qp_attr.sq_psn = module->addr.psn;
-    if (ibv_modify_qp(module->qp, &qp_attr, IBV_QP_STATE | IBV_QP_SQ_PSN)) {
+    if (ibv_modify_qp(module->qp, &qp_attr, IBV_QP_STATE)) {
         /* JMS handle error better */
         opal_output(0, "***************************************BARF on modify qp RTS");
         return OMPI_ERROR;
@@ -749,8 +745,13 @@ int ompi_btl_usnic_module_init(ompi_btl_usnic_module_t *module)
     }
 
     /* Set up the QP for this BTL */
-    if (OMPI_SUCCESS != init_qp(module)) {
-        goto qp_destroy;
+    rc = init_qp(module);
+    if (OMPI_SUCCESS != rc) {
+	if (OMPI_ERR_TEMP_OUT_OF_RESOURCE == rc) {
+	    goto qp_destroy;
+	} else {
+	    goto mpool_destroy;
+	}
     }
 
     /* Place our QP numbers in our local address information */
@@ -842,7 +843,6 @@ int ompi_btl_usnic_module_init(ompi_btl_usnic_module_t *module)
                             module->super.btl_mpool);
 #endif
 
-    module->addr.psn = lrand48() & 0xffffff;
     if (OMPI_SUCCESS != move_qp_to_rts(module)) {
         goto obj_destruct;
     }

@@ -175,10 +175,8 @@ static int usnic_modex_send(void)
             ompi_btl_usnic_module_t* module = 
                 &mca_btl_usnic_component.usnic_modules[i];
             addrs[i] = module->addr;
-            BTL_VERBOSE(("modex_send QP num %d, PSN = %d, LID = %d, subnet = %" PRIx64,
+            BTL_VERBOSE(("modex_send QP num %d, subnet = %" PRIx64,
                          addrs[i].qp_num, 
-                         addrs[i].psn,
-                         addrs[i].lid, 
                          addrs[i].subnet));
         }
     }
@@ -298,12 +296,15 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
              IBV_NODE_USNIC == port->device->device->node_type) ||
 #endif
             /* Or take any specific device that we know is a Cisco
-               VIC. */
+               VIC.  Cisco's vendor ID is 0x1137, and Sereno-based
+               VICs are part ID 127. */
               /* JMS Would be good to put this in a text config file
                  so that users can patch a binary install of Open MPI
                  to allow for new VIC product numbers if necessary */
             (0x1137 == port->device->device_attr.vendor_id &&
              127 == port->device->device_attr.vendor_part_id)) {
+	    /* Happiness */
+	} else {
             opal_output_verbose(5, mca_btl_base_output,
                                 "btl:usnic: this is not a usnic (expected vendor/part 0x1137/127, got 0x%x/%d)",
                                 port->device->device_attr.vendor_id,
@@ -335,7 +336,6 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
             continue;
         }
 
-        module->addr.lid = port->port_attr.lid;
         module->addr.subnet = ntoh64(gid.global.subnet_prefix);
 
         BTL_VERBOSE(("subnet ID for verbs device %s port %d is %016" PRIx64,
