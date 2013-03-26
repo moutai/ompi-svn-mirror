@@ -1,0 +1,1 @@
+--disable-vt --disable-openib-dynamic-sl --with-openib=/usr/local --with-valgrind=/cm/shared/apps/valgrind/3.8.1 --without-psm --enable-memchecker
