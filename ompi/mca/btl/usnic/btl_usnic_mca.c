@@ -179,19 +179,16 @@ int ompi_btl_usnic_component_register(void)
                   "GID index to use on verbs device ports",
                   0, &mca_btl_usnic_component.gid_index, REGINT_GE_ZERO));
 
-    /* JMS Default customized for USNIC */
-    CHECK(reg_int("sd_num", "maximum send descriptors to post",
-                  4095, &val, REGINT_GE_ONE));
+    CHECK(reg_int("sd_num", "maximum send descriptors to post (-1 = max supported by device)",
+                  -1, &val, REGINT_NEG_ONE_OK));
     mca_btl_usnic_component.sd_num = (int32_t) val;
 
-    /* JMS Default customized for USNIC */
-    CHECK(reg_int("rd_num", "number of pre-posted receive buffers",
-                  4095, &val, REGINT_GE_ONE));
+    CHECK(reg_int("rd_num", "number of pre-posted receive buffers (-1 = max supported by device)",
+                  -1, &val, REGINT_NEG_ONE_OK));
     mca_btl_usnic_component.rd_num = (int32_t) val;
 
-    /* JMS Default customized for USNIC */
-    CHECK(reg_int("cq_num", "number of completion queue entries (0 = sd_num+rd_num)",
-                  8192, &val, REGINT_GE_ZERO));
+    CHECK(reg_int("cq_num", "number of completion queue entries (-1 = max supported by the device; will error if (sd_num+rd_num)>cq_num)",
+                  -1, &val, REGINT_NEG_ONE_OK));
     mca_btl_usnic_component.cq_num = (int32_t) val;
     if (0 == mca_btl_usnic_component.cq_num) {
         mca_btl_usnic_component.cq_num = 

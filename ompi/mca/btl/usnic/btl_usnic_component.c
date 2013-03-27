@@ -380,9 +380,21 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         opal_memchecker_base_mem_defined(&device_attr, sizeof(device_attr));
 
         /* How many xQ entries do we want? */
-        module->sd_num = mca_btl_usnic_component.sd_num;
-        module->rd_num = mca_btl_usnic_component.rd_num;
-        module->cq_num = mca_btl_usnic_component.cq_num;
+	if (-1 == mca_btl_usnic_component.sd_num) {
+	    module->sd_num = device_attr.max_qp_wr;
+	} else {
+	    module->sd_num = mca_btl_usnic_component.sd_num;
+	}
+	if (-1 == mca_btl_usnic_component.sd_num) {
+	    module->rd_num = device_attr.max_qp_wr;
+	} else {
+	    module->rd_num = mca_btl_usnic_component.rd_num;
+	}
+	if (-1 == mca_btl_usnic_component.sd_num) {
+	    module->cq_num = device_attr.max_cqe;
+	} else {
+	    module->cq_num = mca_btl_usnic_component.cq_num;
+	}
         opal_output_verbose(5, mca_btl_base_output,
                             "btl:usnic: num sqe=%d, num rqe=%d, num cqe=%d",
                             module->sd_num,
