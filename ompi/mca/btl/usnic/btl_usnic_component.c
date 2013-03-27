@@ -245,7 +245,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
                                      mca_btl_usnic_component.if_exclude,
                                      flags, mca_btl_base_output);
     if (NULL == port_list || 0 == opal_list_get_size(port_list)) {
-        mca_btl_base_error_no_nics("OpenFabrics UD", "device");
+        mca_btl_base_error_no_nics("USNIC", "device");
         btls = NULL;
         goto free_include_list;
     }
