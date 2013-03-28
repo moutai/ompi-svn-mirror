@@ -171,9 +171,6 @@ int ompi_btl_usnic_component_register(void)
     CHECK(reg_int("ib_service_level", "Service level",
                   0, &val, REGINT_GE_ZERO));
     mca_btl_usnic_component.verbs_service_level = (uint32_t) val;
-    CHECK(reg_int("ib_src_path_bits", "Source path bits",
-                  0, &val, REGINT_GE_ZERO));
-    mca_btl_usnic_component.verbs_src_path_bits = (uint32_t) val;
 
     CHECK(reg_int("gid_index",
                   "GID index to use on verbs device ports",

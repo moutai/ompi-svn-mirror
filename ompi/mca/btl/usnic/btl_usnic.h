@@ -142,7 +142,6 @@ typedef struct ompi_btl_usnic_component_t {
     uint32_t verbs_pkey_index;
     uint32_t verbs_qkey;
     uint32_t verbs_service_level;
-    uint32_t verbs_src_path_bits;
 
     /** ethertype */
     uint16_t ethertype;

@@ -209,7 +209,8 @@ static void endpoint_construct(mca_btl_base_endpoint_t* endpoint)
     endpoint->endpoint_proc = NULL;
 
     endpoint->endpoint_remote_addr.qp_num = 0;
-    endpoint->endpoint_remote_addr.subnet = 0;
+    endpoint->endpoint_remote_addr.gid.global.subnet_prefix = 0;
+    endpoint->endpoint_remote_addr.gid.global.interface_id = 0;
     endpoint->endpoint_remote_ah = NULL;
 
 #if RELIABILITY

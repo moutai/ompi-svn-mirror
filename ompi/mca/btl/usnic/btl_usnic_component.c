@@ -336,11 +336,12 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
             continue;
         }
 
-        module->addr.subnet = ntoh64(gid.global.subnet_prefix);
-
-        BTL_VERBOSE(("subnet ID for verbs device %s port %d is %016" PRIx64,
+        BTL_VERBOSE(("GID for verbs device %s port %d: subnet 0xx%016" PRIx64 ", interface 0x%016 " PRIx64,
                      ibv_get_device_name(port->device->device), 
-                     port->port_num, module->addr.subnet));
+                     port->port_num, 
+		     ntoh64(gid.global.subnet_prefix),
+		     ntoh64(gid.global.interface_id)));
+	module->addr.gid = gid;
 
         /* Get this port's bandwidth */
         if (0 == module->super.btl_bandwidth) {
