@@ -343,6 +343,7 @@ int ompi_btl_usnic_proc_insert(ompi_btl_usnic_module_t *module,
     endpoint->endpoint_remote_addr = 
         proc->proc_modex[proc->proc_endpoint_count];
     proc->proc_endpoints[proc->proc_endpoint_count] = endpoint;
+    OBJ_RETAIN(endpoint);
     ++proc->proc_endpoint_count;
 
     return OMPI_SUCCESS;
