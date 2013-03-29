@@ -126,7 +126,7 @@ static int usnic_add_procs(struct mca_btl_base_module_t* base_module,
            about / want to be logically false. */
         memset(&ah_attr, 0, sizeof(ah_attr));
 	ah_attr.is_global = 1;
-	ah_attr.grh.dgid = usnic_proc->proc_modex->gid;
+	ah_attr.grh.dgid = usnic_endpoint->endpoint_remote_addr.gid;
         ah_attr.sl = mca_btl_usnic_component.verbs_service_level;
         ah_attr.port_num = module->port_num;
 
