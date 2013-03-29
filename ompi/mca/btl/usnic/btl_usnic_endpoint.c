@@ -226,6 +226,7 @@ static void endpoint_construct(mca_btl_base_endpoint_t* endpoint)
 
     /* Setup this endpoint's list item */
     OBJ_CONSTRUCT(&(endpoint->endpoint_li.super), opal_list_item_t);
+    endpoint->endpoint_li.enqueued = false;
     endpoint->endpoint_li.endpoint = endpoint;
 #endif
 
