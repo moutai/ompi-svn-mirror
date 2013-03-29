@@ -91,6 +91,11 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
     uint32_t i;
     ompi_btl_usnic_pending_frag_t *pfrag;
 #endif
+
+    /* JMS */
+#undef MSGDEBUG
+#define MSGDEBUG 1
+
 #if MSGDEBUG
     char src_mac[32];
     char dest_mac[32];
@@ -103,11 +108,70 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
     opal_memchecker_base_mem_defined((void*) (frag->wr_desc.rd_desc.sg_list[0].addr),
                                      frag->wr_desc.rd_desc.sg_list[0].length);
 
+    /* JMS remove me */
+    assert(frag->protocol_header->l2.proto_ver == 1);
+    assert(frag->protocol_header->l2.l2_ethertype == 0x8915);
+
 #if MSGDEBUG
     memset(src_mac, 0, sizeof(src_mac));
     memset(dest_mac, 0, sizeof(dest_mac));
-    ompi_btl_usnic_sprintf_mac(src_mac, frag->protocol_header->l2_src_mac);
-    ompi_btl_usnic_sprintf_mac(dest_mac, frag->protocol_header->l2_dest_mac);
+    ompi_btl_usnic_sprintf_mac(src_mac, frag->protocol_header->protocol.l2.l2_src_mac);
+    ompi_btl_usnic_sprintf_mac(dest_mac, frag->protocol_header->protocol.l2.l2_dest_mac);
+
+    opal_output(0, "Got message from MAC %s, dest_qp=%d, src_qp=%d",
+		src_mac,
+		frag->protocol_header->protocol.l2.dest_qp_num,
+		frag->protocol_header->protocol.l2.src_qp_num);
+#if 1
+    {
+	char buf[128];
+	snprintf(buf, sizeof(buf), "Hdr: %02x %02x %02x %02x|%02x %02x %02x %02x|%02x %02x %02x %02x| %02x %02x %02x %02x|%02x %02x %02x %02x|%02x %02x %02x %02x|%02x %02x %02x %02x|%02x %02x %02x %02x|%02x %02x %02x %02x| %02x %02x %02x %02x",
+		 frag->protocol_header->protocol.raw[0],
+		 frag->protocol_header->protocol.raw[1],
+		 frag->protocol_header->protocol.raw[2],
+		 frag->protocol_header->protocol.raw[3],
+		 frag->protocol_header->protocol.raw[4],
+		 frag->protocol_header->protocol.raw[5],
+		 frag->protocol_header->protocol.raw[6],
+		 frag->protocol_header->protocol.raw[7],
+		 frag->protocol_header->protocol.raw[8],
+		 frag->protocol_header->protocol.raw[9],
+		 frag->protocol_header->protocol.raw[10],
+		 frag->protocol_header->protocol.raw[11],
+		 frag->protocol_header->protocol.raw[12],
+		 frag->protocol_header->protocol.raw[13],
+		 frag->protocol_header->protocol.raw[14],
+		 frag->protocol_header->protocol.raw[15],
+		 frag->protocol_header->protocol.raw[16],
+		 frag->protocol_header->protocol.raw[17],
+		 frag->protocol_header->protocol.raw[18],
+		 frag->protocol_header->protocol.raw[19],
+		 frag->protocol_header->protocol.raw[20],
+		 frag->protocol_header->protocol.raw[21],
+		 frag->protocol_header->protocol.raw[22],
+		 frag->protocol_header->protocol.raw[23],
+		 frag->protocol_header->protocol.raw[24],
+		 frag->protocol_header->protocol.raw[25],
+		 frag->protocol_header->protocol.raw[26],
+		 frag->protocol_header->protocol.raw[27],
+		 frag->protocol_header->protocol.raw[28],
+		 frag->protocol_header->protocol.raw[29],
+		 frag->protocol_header->protocol.raw[30],
+		 frag->protocol_header->protocol.raw[31],
+		 frag->protocol_header->protocol.raw[32],
+		 frag->protocol_header->protocol.raw[33],
+		 frag->protocol_header->protocol.raw[34],
+		 frag->protocol_header->protocol.raw[35],
+		 frag->protocol_header->protocol.raw[36],
+		 frag->protocol_header->protocol.raw[37],
+		 frag->protocol_header->protocol.raw[38],
+		 frag->protocol_header->protocol.raw[39]);
+	opal_output(0, "%s", buf);
+    }
+#endif
+    opal_output(0, "Looking for sender: 0x%016lx (magic: 0x%016lx)",
+		frag->btl_header->sender, frag->btl_header->magic);
+    assert(&frag->btl_header->magic == frag->base.super.ptr + 40);
 #endif
 
     /* Find out who sent this frag */
@@ -118,7 +182,7 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
         opal_output(0, "=== Unknown sender; dropped: from MAC %s to MAC %s, qp_num %d, seq %" UDSEQ, 
                     src_mac, 
                     dest_mac, 
-                    frag->protocol_header->qp_num,
+                    frag->protocol_header->protocol.l2.dest_qp_num,
                     frag->btl_header->seq);
 #endif
         ++module->num_unk_recvs;

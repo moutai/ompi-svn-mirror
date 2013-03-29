@@ -43,6 +43,8 @@ void ompi_btl_usnic_send_complete(ompi_btl_usnic_module_t *module,
 {
     /* Reap a frag that was sent */
     --frag->send_wr_posted;
+    opal_output(0, "--> Sending MSG: seq %" UDSEQ " complete",
+		frag->btl_header->seq);
 
     if (frag->base.des_flags & MCA_BTL_DES_SEND_ALWAYS_CALLBACK) {
         frag->base.des_cbfunc(&module->super,

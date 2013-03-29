@@ -60,6 +60,7 @@ typedef struct ompi_btl_usnic_reg_t {
  */
 typedef struct {
     union {
+	uint8_t raw[40];
         /* JMS This is temporary: until Upinder fills in the GRH for
            me properly */
         struct {
@@ -67,13 +68,15 @@ typedef struct {
             uint8_t    l2_dest_mac[6];
             uint8_t    l2_src_mac[6];
             uint16_t   l2_ethertype;
-            uint16_t   qp_num;
-        } l2;
+	    uint8_t    proto_version;
+            uint32_t   dest_qp_num;
+            uint32_t   src_qp_num;
+        } __attribute__((__packed__)) l2;
         /* IB UD global resource header (GRH), which appears on the
            receiving side only. */
         struct ibv_grh grh;
-    } protocol;
-} ompi_btl_usnic_protocol_header_t;
+    } __attribute__((__packed__)) protocol;
+} __attribute__((__packed__)) ompi_btl_usnic_protocol_header_t;
 
 /**
  * usnic header type
@@ -101,6 +104,7 @@ typedef struct {
     /* Hashed ORTE process name of the sender */
     /* JMS Can this be replaced with a pointer?  Requires an initial
        handshake somehow... */
+    uint64_t magic;
     uint64_t sender;
 #if RELIABILITY
     /* Sliding window sequence number (echoed back in an ACK).  This

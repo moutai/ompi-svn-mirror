@@ -226,6 +226,8 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
     /* initialization */
     mca_btl_usnic_component.my_hashed_orte_name = 
         orte_util_hash_name(&(ompi_proc_local()->proc_name));
+    opal_output(0, "========== my hashed orte name is 0x%016lx\n", 
+		mca_btl_usnic_component.my_hashed_orte_name);
 
     *num_btl_modules = 0;
 
@@ -342,6 +344,19 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
 		     ntoh64(gid.global.subnet_prefix),
 		     ntoh64(gid.global.interface_id)));
 	module->addr.gid = gid;
+
+	/* Extract the MAC address from the interface_id */
+	ompi_btl_usnic_gid_to_mac(&gid, module->addr.mac);
+
+	/* Use that MAC address to find the device/port's
+	   corresponding IP address */
+        if (OPAL_SUCCESS != ompi_btl_usnic_find_ip(module, 
+						   module->addr.mac)) {
+            opal_output_verbose(5, mca_btl_base_output, 
+                                "btl:udverbs did not find IP interfaces for %s; skipping",
+                                ibv_get_device_name(port->device->device));
+            continue;
+        }
 
         /* Get this port's bandwidth */
         if (0 == module->super.btl_bandwidth) {
