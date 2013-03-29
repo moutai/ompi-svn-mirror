@@ -50,8 +50,6 @@ static void ompi_btl_usnic_frag_reset_states(ompi_btl_usnic_frag_t *frag)
 
 static void frag_common_constructor(ompi_btl_usnic_frag_t* frag)
 {
-    assert(sizeof(ompi_btl_usnic_protocol_header_t) == 40);
-
     frag->ud_reg = (ompi_btl_usnic_reg_t*)frag->base.super.registration;
     frag->sg_entry.lkey = frag->ud_reg->mr->lkey;
     frag->base.des_flags = 0;
@@ -72,7 +70,7 @@ static void send_frag_constructor(ompi_btl_usnic_frag_t* frag)
     frag->base.des_dst_cnt = 0;
 
     frag->protocol_header = frag->base.super.ptr;
-    frag->btl_header = (ompi_btl_usnic_btl_header_t *) frag->base.super.ptr;
+    frag->btl_header = (ompi_btl_usnic_btl_header_t *) frag->protocol_header;
     frag->btl_header->sender = 
         mca_btl_usnic_component.my_hashed_orte_name;
 
@@ -83,16 +81,11 @@ static void send_frag_constructor(ompi_btl_usnic_frag_t* frag)
     /* This is what the underlying transport (verbs) sees */
     frag->sg_entry.addr = (unsigned long) frag->protocol_header;
 
-    frag->btl_header->magic = 0xdeadbeef11111111;
-    assert(&frag->btl_header->magic == frag->base.super.ptr);
-
     frag->wr_desc.sr_desc.wr_id = (unsigned long) frag;
     frag->wr_desc.sr_desc.sg_list = &frag->sg_entry;
     frag->wr_desc.sr_desc.num_sge = 1;
     frag->wr_desc.sr_desc.opcode = IBV_WR_SEND;
-    // JMS
     frag->wr_desc.sr_desc.send_flags = IBV_SEND_SIGNALED | IBV_SEND_INLINE;
-    //frag->wr_desc.sr_desc.send_flags = IBV_SEND_SIGNALED;
     frag->wr_desc.sr_desc.next = NULL;
     frag->wr_desc.sr_desc.wr.ud.remote_qkey = 
         mca_btl_usnic_component.verbs_qkey;
@@ -104,7 +97,6 @@ static void ack_frag_constructor(ompi_btl_usnic_frag_t* frag)
 {
     send_frag_constructor(frag);
 
-    frag->btl_header->magic = 0xdeadbeef22222222;
     frag->type = OMPI_BTL_USNIC_FRAG_ACK;
 }
 #endif
