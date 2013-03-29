@@ -56,14 +56,6 @@ int ompi_btl_usnic_endpoint_post_send(ompi_btl_usnic_module_t* module,
 #endif
 
     frag->sg_entry.length = 
-#if BTL_USNIC_USNIC
-        /* For USNIC, we need to include the L2 frame size */
-        sizeof(ompi_btl_usnic_protocol_header_t) +
-#else
-        /* IB silently adds its own protocol header; we don't include
-           it here */
-        0 +
-#endif
         sizeof(ompi_btl_usnic_btl_header_t) +
         frag->segment.seg_len;
     wr->send_flags = IBV_SEND_SIGNALED;
