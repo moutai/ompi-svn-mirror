@@ -244,7 +244,7 @@ static int btl_usnic_opal_ifinit(void)
     /* Beginning of !(various flavors of BSD) */
     {
         int sd;
-        int lastlen, num, rem;
+        int lastlen, rem;
         char *ptr;
         struct ifconf ifconf;
         int ifc_len;
@@ -331,7 +331,6 @@ static int btl_usnic_opal_ifinit(void)
          */
         ptr = (char*) ifconf.ifc_req;
         rem = ifconf.ifc_len;
-        num = 0;
         
         /* loop through all interfaces */
         while (rem > 0) {
