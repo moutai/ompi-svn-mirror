@@ -162,16 +162,6 @@ int ompi_btl_usnic_component_register(void)
     CHECK(reg_string("mpool", "Name of the memory pool to be used",
                      "rdma", &mca_btl_usnic_component.usnic_mpool_name, 0));
 
-    CHECK(reg_int("ib_pkey_index", "Verbs pkey index",
-                  0, &val, REGINT_GE_ZERO));
-    mca_btl_usnic_component.verbs_pkey_index = (uint32_t) val;
-    CHECK(reg_int("ib_qkey", "Verbs qkey",
-                  0x01330133, &val, REGINT_GE_ZERO));
-    mca_btl_usnic_component.verbs_qkey = (uint32_t) val;
-    CHECK(reg_int("ib_service_level", "Service level",
-                  0, &val, REGINT_GE_ZERO));
-    mca_btl_usnic_component.verbs_service_level = (uint32_t) val;
-
     CHECK(reg_int("gid_index",
                   "GID index to use on verbs device ports",
                   0, &mca_btl_usnic_component.gid_index, REGINT_GE_ZERO));
