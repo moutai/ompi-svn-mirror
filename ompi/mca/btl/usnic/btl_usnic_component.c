@@ -175,9 +175,11 @@ static int usnic_modex_send(void)
             ompi_btl_usnic_module_t* module = 
                 &mca_btl_usnic_component.usnic_modules[i];
             addrs[i] = module->addr;
-            BTL_VERBOSE(("modex_send QP num %d, subnet = %" PRIx64,
-                         addrs[i].qp_num, 
-                         addrs[i].subnet));
+            opal_output_verbose(5, mca_btl_base_output,
+                                "modex_send QP num %d, subnet = 0x%016" PRIx64 " interface =0x%016" PRIx64,
+                                addrs[i].qp_num, 
+                                ntoh64(addrs[i].gid.global.subnet_prefix),
+                                ntoh64(addrs[i].gid.global.interface_id));
         }
     }
 
@@ -336,12 +338,26 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
             continue;
         }
 
-        BTL_VERBOSE(("GID for verbs device %s port %d: subnet 0xx%016" PRIx64 ", interface 0x%016 " PRIx64,
-                     ibv_get_device_name(port->device->device), 
-                     port->port_num, 
-		     ntoh64(gid.global.subnet_prefix),
-		     ntoh64(gid.global.interface_id)));
+        opal_output_verbose(5, mca_btl_base_output,
+                            "GID for verbs device %s port %d: subnet 0x%016" PRIx64 ", interface 0x%016" PRIx64,
+                            ibv_get_device_name(port->device->device), 
+                            port->port_num, 
+                            ntoh64(gid.global.subnet_prefix),
+                            ntoh64(gid.global.interface_id));
 	module->addr.gid = gid;
+
+        /* Extract the MAC address from the interface_id */
+        ompi_btl_usnic_gid_to_mac(&gid, module->addr.mac);
+
+        /* Use that MAC address to find the device/port's
+           corresponding IP address */
+        if (OPAL_SUCCESS != ompi_btl_usnic_find_ip(module, 
+                                                   module->addr.mac)) {
+            opal_output_verbose(5, mca_btl_base_output, 
+                                "btl:udverbs did not find IP interfaces for %s; skipping",
+                                ibv_get_device_name(port->device->device));
+            continue;
+        }
 
         /* Get this port's bandwidth */
         if (0 == module->super.btl_bandwidth) {

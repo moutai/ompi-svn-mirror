@@ -128,41 +128,40 @@ int ompi_btl_usnic_endpoint_post_send(ompi_btl_usnic_module_t* module,
     sent_frag->frag = frag;
     sent_frag->hotel_room = room;
     sent_frag->occupied = true;
+#if MSGDEBUG
+    /* JMS */
+    opal_output(0, "Sent frag table %p, index %d, seq %lu, to occupied=true (%d)",
+		(void*) endpoint->endpoint_sent_frags, sfi,
+		frag->btl_header->seq,
+		sent_frag->occupied);
+#endif /* debug */
 #endif /* Reliability */
 
-#if BTL_USNIC_USNIC
-    /* Fill in my MAC address as the source MAC, and fill in the
-       ethertype */
-    /* JMS Since we have a send pool for each BTL module, it would be
-       better to do this in the frag constructor... but we need to get
-       the module in there somehow. :-( */
-    /* JMS For the moment, the MAC is in the lower 6 bytes of the raw
-       GID */
-    memcpy(frag->protocol_header->l2_src_mac, &(module->addr.gid.raw), 6);
-    memcpy(frag->protocol_header->l2_dest_mac, 
-           &(endpoint->endpoint_remote_addr.gid.raw), 6);
-    frag->protocol_header->qp_num =
-        htons(endpoint->endpoint_remote_addr.qp_num);
-#else
     wr->wr.ud.ah = endpoint->endpoint_remote_ah;
     wr->wr.ud.remote_qpn = endpoint->endpoint_remote_addr.qp_num;
-#endif
 
-    /* JMS If this is going to be a general UD verbs BTL, we need to:
-       - check for endian heterogeneity
-       - check for inline support */
-
-#if BTL_USNIC_USNIC && MSGDEBUG
+#if MSGDEBUG
     /* JMS Remove me */
     {
-        char mac1[32], mac2[32];
-        ompi_btl_usnic_sprintf_mac(mac1, frag->protocol_header->l2_dest_mac);
-        ompi_btl_usnic_sprintf_mac(mac2, frag->protocol_header->l2_src_mac);
-        opal_output(0, "--> Sending MSG: frame: dest MAC %s, src MAC %s, qpn: 0x%x, seq: %" UDSEQ ", room %d, wc len %u, module %p, ep %p",
-                    mac1, mac2, 
-                    ntohs(frag->protocol_header->qp_num),
-                    frag->btl_header->seq, room,
-                    frag->sg_entry.length, (void*)module, (void*)endpoint);
+        uint8_t mac[6];
+	char mac_str1[128];
+	char mac_str2[128];
+	ompi_btl_usnic_sprintf_mac(mac_str1, module->addr.mac);
+        ompi_btl_usnic_gid_to_mac(&endpoint->endpoint_remote_addr.gid, mac);
+	ompi_btl_usnic_sprintf_mac(mac_str2, mac);
+
+        opal_output(0, "--> Sending MSG: seq: %" UDSEQ ", sender: 0x%016lx from device %s MAC %s, qp %u, magic: 0x%016lx, room %d, wc len %u, remote MAC %s, qp %u, pid %u",
+                    frag->btl_header->seq, 
+                    frag->btl_header->sender, 
+		    endpoint->endpoint_module->device->name,
+		    mac_str1,
+                    module->addr.qp_num,
+                    frag->btl_header->magic, 
+		    room,
+                    frag->sg_entry.length,
+		    mac_str2,
+                    endpoint->endpoint_remote_addr.qp_num,
+                    endpoint->endpoint_remote_addr.pid);
     }
 #endif
 

@@ -106,8 +106,15 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
 #if MSGDEBUG
     memset(src_mac, 0, sizeof(src_mac));
     memset(dest_mac, 0, sizeof(dest_mac));
-    ompi_btl_usnic_sprintf_mac(src_mac, frag->protocol_header->l2_src_mac);
-    ompi_btl_usnic_sprintf_mac(dest_mac, frag->protocol_header->l2_dest_mac);
+    ompi_btl_usnic_sprintf_mac(src_mac, frag->protocol_header->protocol.l2.l2_src_mac);
+    ompi_btl_usnic_sprintf_mac(dest_mac, frag->protocol_header->protocol.l2.l2_dest_mac);
+
+    opal_output(0, "Got message from MAC %s, dest_qp=%u, src_qp=%u",
+		src_mac,
+		ntohl(frag->protocol_header->protocol.l2.dest_qp_num),
+		ntohl(frag->protocol_header->protocol.l2.src_qp_num));
+    opal_output(0, "Looking for sender: 0x%016lx (magic: 0x%016lx)",
+		frag->btl_header->sender, frag->btl_header->magic);
 #endif
 
     /* Find out who sent this frag */
@@ -118,7 +125,7 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
         opal_output(0, "=== Unknown sender; dropped: from MAC %s to MAC %s, qp_num %d, seq %" UDSEQ, 
                     src_mac, 
                     dest_mac, 
-                    frag->protocol_header->qp_num,
+                    frag->protocol_header->protocol.l2.dest_qp_num,
                     frag->btl_header->seq);
 #endif
         ++module->num_unk_recvs;
@@ -163,9 +170,11 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
         if (seq < endpoint->endpoint_next_contig_seq_to_recv ||
             seq >= endpoint->endpoint_next_contig_seq_to_recv + WINDOW_SIZE) {
 #if MSGDEBUG
-            opal_output(0, "<-- Received MSG ep %p, seq %" UDSEQ " from %s to %s: outside of window (%" UDSEQ " - %" UDSEQ "), frag %p, module %p -- DROPPED",
+            opal_output(0, "<-- Received MSG ep %p, seq %" UDSEQ " from %s qp %u to %s: outside of window (%" UDSEQ " - %" UDSEQ "), frag %p, module %p -- DROPPED",
                         (void*)endpoint, frag->btl_header->seq, 
-                        src_mac, dest_mac,
+                        src_mac, 
+                        frag->protocol_header->protocol.l2.src_qp_num,
+                        dest_mac,
                         endpoint->endpoint_next_contig_seq_to_recv,
                         (endpoint->endpoint_next_contig_seq_to_recv + 
                          WINDOW_SIZE - 1),
@@ -312,7 +321,15 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
         for (is = endpoint->endpoint_ack_seq_rcvd + 1; is <= ack_seq; ++is) {
             pfrag = &(endpoint->endpoint_sent_frags[WINDOW_SIZE_MOD(is)]);
 
+#if MSGDEBUG
             /* JMS DEBUG */
+	    opal_output(0, "  Checking ACK/sent_frags window %p, index %lu, seq %lu, prag=%p, occupied=%d",
+			(void*) endpoint->endpoint_sent_frags,
+			WINDOW_SIZE_MOD(is),
+			is,
+			(void*)pfrag,
+			pfrag->occupied);
+#endif
             assert(pfrag->occupied);
             assert(FRAG_STATE_GET(pfrag->frag, FRAG_ALLOCED));
             assert(pfrag->frag->btl_header->seq == is);

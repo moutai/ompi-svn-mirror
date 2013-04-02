@@ -70,7 +70,7 @@ static void send_frag_constructor(ompi_btl_usnic_frag_t* frag)
     frag->base.des_dst_cnt = 0;
 
     frag->protocol_header = frag->base.super.ptr;
-    frag->btl_header = (ompi_btl_usnic_btl_header_t *) frag->protocol_header;
+    frag->btl_header = (ompi_btl_usnic_btl_header_t *) frag->base.super.ptr;
     frag->btl_header->sender = 
         mca_btl_usnic_component.my_hashed_orte_name;
 
@@ -85,7 +85,12 @@ static void send_frag_constructor(ompi_btl_usnic_frag_t* frag)
     frag->wr_desc.sr_desc.sg_list = &frag->sg_entry;
     frag->wr_desc.sr_desc.num_sge = 1;
     frag->wr_desc.sr_desc.opcode = IBV_WR_SEND;
+    /* JMS Put inline back when it is tested more */
+#if 0
     frag->wr_desc.sr_desc.send_flags = IBV_SEND_SIGNALED | IBV_SEND_INLINE;
+#else
+    frag->wr_desc.sr_desc.send_flags = IBV_SEND_SIGNALED;
+#endif
     frag->wr_desc.sr_desc.next = NULL;
     frag->wr_desc.sr_desc.wr.ud.remote_qkey = 
         mca_btl_usnic_component.verbs_qkey;

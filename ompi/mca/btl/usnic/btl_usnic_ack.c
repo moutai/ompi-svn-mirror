@@ -27,12 +27,13 @@
  * Send an ACK
  */
 void ompi_btl_usnic_ack_send(ompi_btl_usnic_module_t *module,
-                               ompi_btl_usnic_endpoint_t *endpoint)
+                             ompi_btl_usnic_endpoint_t *endpoint)
 {
     int rc;
     ompi_btl_usnic_frag_t *ack;
     struct ibv_send_wr *wr, *bad_wr;
 #if MSGDEBUG
+    uint8_t mac[6];
     char src_mac[32];
     char dest_mac[32];
 #endif
@@ -74,11 +75,15 @@ void ompi_btl_usnic_ack_send(ompi_btl_usnic_module_t *module,
 #if MSGDEBUG
     memset(src_mac, 0, sizeof(src_mac));
     memset(dest_mac, 0, sizeof(dest_mac));
-    ompi_btl_usnic_sprintf_mac(src_mac, ack->protocol_header->l2_src_mac);
-    ompi_btl_usnic_sprintf_mac(dest_mac, ack->protocol_header->l2_dest_mac);
+    ompi_btl_usnic_sprintf_mac(src_mac, module->if_mac);
+    ompi_btl_usnic_gid_to_mac(&endpoint->endpoint_remote_addr.gid, mac);
+    ompi_btl_usnic_sprintf_mac(dest_mac, mac);
 
-    opal_output(0, "--> Sending ACK wr_id 0x%lx, sg_entry length %d, seq %" UDSEQ " to %s from %s", 
-                wr->wr_id, ack->sg_entry.length, ack->payload.ack[0], dest_mac, src_mac);
+    opal_output(0, "--> Sending ACK wr_id 0x%lx, sg_entry length %d, seq %" UDSEQ " to %s, qp %u, pid %u", 
+                wr->wr_id, ack->sg_entry.length, ack->payload.ack[0], 
+                dest_mac,
+                endpoint->endpoint_remote_addr.qp_num,
+                endpoint->endpoint_remote_addr.pid);
 #endif
 
     if (OPAL_UNLIKELY((rc = ibv_post_send(module->qp, wr, &bad_wr)))) {
@@ -170,8 +175,8 @@ void ompi_btl_usnic_ack_timeout(opal_hotel_t *hotel, int room_num,
  *    attempts to progress the pending send list.
  */
 void ompi_btl_usnic_ack_timeout_part2(ompi_btl_usnic_module_t *module,
-                                        ompi_btl_usnic_frag_t *frag,
-                                        bool direct)
+                                      ompi_btl_usnic_frag_t *frag,
+                                      bool direct)
 {
     uint16_t swi;
     int ret, room;
@@ -189,7 +194,8 @@ void ompi_btl_usnic_ack_timeout_part2(ompi_btl_usnic_module_t *module,
     if (FRAG_STATE_GET(frag, FRAG_SEND_ACKED)) {
 #if MSGDEBUG
         opal_output(0, "================ Re-sending, but ACK already received, module %p, frag %p, pml_called %d", 
-                    (void*) module, (void*) frag, frag->pml_called_back);
+                    (void*) module, (void*) frag, 
+                    FRAG_STATE_ISSET(frag, FRAG_PML_CALLED_BACK));
 #endif
 
         /* JMS This is for debugging only -- we should directly just
@@ -230,6 +236,7 @@ void ompi_btl_usnic_ack_timeout_part2(ompi_btl_usnic_module_t *module,
 
 #if MSGDEBUG
     {
+        uint8_t mac[6];
         char src_mac[32], dest_mac[32];
         ompi_btl_usnic_pending_frag_t *sent_frag;;
 
@@ -237,11 +244,19 @@ void ompi_btl_usnic_ack_timeout_part2(ompi_btl_usnic_module_t *module,
 
         memset(src_mac, 0, sizeof(src_mac));
         memset(dest_mac, 0, sizeof(dest_mac));
-        ompi_btl_usnic_sprintf_mac(src_mac, frag->protocol_header->l2_src_mac);
-        ompi_btl_usnic_sprintf_mac(dest_mac, frag->protocol_header->l2_dest_mac);
+	ompi_btl_usnic_sprintf_mac(src_mac, module->addr.mac);
+        ompi_btl_usnic_gid_to_mac(&endpoint->endpoint_remote_addr.gid, mac);
+	ompi_btl_usnic_sprintf_mac(dest_mac, mac);
 
-        opal_output(0, "--> Re-sending MSG, seq %" UDSEQ ", hotel room %d, frag 0x%p from %s to %s, qpn %d",
-                    sent_frag->frag->btl_header->seq, sent_frag->hotel_room, (void*)frag, src_mac, dest_mac, ntohs(frag->protocol_header->qp_num));
+        opal_output(0, "--> Re-sending MSG, seq %" UDSEQ ", hotel room %d, frag 0x%p from %s qp %u to %s, qp %d, pid %u",
+                    sent_frag->frag->btl_header->seq, 
+                    sent_frag->hotel_room,
+                    (void*)frag, 
+                    src_mac, 
+                    module->addr.qp_num,
+                    dest_mac,
+                    endpoint->endpoint_remote_addr.qp_num,
+                    endpoint->endpoint_remote_addr.pid);
     }
 #endif
 

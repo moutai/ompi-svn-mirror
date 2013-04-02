@@ -109,7 +109,7 @@ static int usnic_add_procs(struct mca_btl_base_module_t* base_module,
            address to communicate with you."  So just skip it and move
            on. */
         rc = ompi_btl_usnic_proc_insert(module, usnic_proc, 
-                                          usnic_endpoint);
+					usnic_endpoint);
         if (rc != OMPI_SUCCESS) {
             OBJ_RELEASE(usnic_endpoint);
             OBJ_RELEASE(usnic_proc);
@@ -126,9 +126,8 @@ static int usnic_add_procs(struct mca_btl_base_module_t* base_module,
            about / want to be logically false. */
         memset(&ah_attr, 0, sizeof(ah_attr));
 	ah_attr.is_global = 1;
+        ah_attr.port_num = 1;
 	ah_attr.grh.dgid = usnic_endpoint->endpoint_remote_addr.gid;
-        ah_attr.sl = mca_btl_usnic_component.verbs_service_level;
-        ah_attr.port_num = module->port_num;
 
         usnic_endpoint->endpoint_remote_ah = 
             ibv_create_ah(module->pd, &ah_attr);
@@ -139,16 +138,19 @@ static int usnic_add_procs(struct mca_btl_base_module_t* base_module,
             continue;
         }
 
-        BTL_VERBOSE(("new usnic peer: QP num %d, subnet = %" PRIx64,
-                     usnic_endpoint->endpoint_remote_addr.qp_num, 
-                     usnic_endpoint->endpoint_remote_addr.subnet));
+        opal_output_verbose(5, mca_btl_base_output,
+                            "new usnic peer: subnet = 0x%016" PRIx64 ", interface = 0x%016" PRIx64,
+                            ntoh64(usnic_endpoint->endpoint_remote_addr.gid.global.subnet_prefix),
+                            ntoh64(usnic_endpoint->endpoint_remote_addr.gid.global.interface_id));
 
         opal_bitmap_set_bit(reachable, i);
         endpoints[i] = usnic_endpoint;
-        BTL_VERBOSE(("make %p endpoint", (void*) usnic_endpoint));
+        opal_output_verbose(5, mca_btl_base_output,
+                            "made %p endpoint", (void*) usnic_endpoint);
         count++;
     }
-    BTL_VERBOSE(("made %" PRIsize_t " endpoints", count));
+    opal_output_verbose(5, mca_btl_base_output,
+                        "made %" PRIsize_t " endpoints", count);
 
     return OMPI_SUCCESS;
 }

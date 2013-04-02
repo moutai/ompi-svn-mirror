@@ -38,6 +38,9 @@ typedef struct ompi_btl_usnic_addr_t {
     union ibv_gid gid;
     uint32_t ipv4_addr;
     uint32_t cidrmask;
+
+    /* JMS For now, we also need the MAC */
+    uint8_t mac[6];
 } ompi_btl_usnic_addr_t;
 
 
