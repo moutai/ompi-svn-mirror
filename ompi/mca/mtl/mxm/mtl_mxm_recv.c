@@ -61,11 +61,16 @@ int ompi_mtl_mxm_irecv(struct mca_mtl_base_module_t* mtl,
 
     /* prepare a receive request embedded in the MTL request */
     mxm_recv_req = &mtl_mxm_request->mxm.recv;
+#if MXM_API >= MXM_VERSION(2,0)
+    mtl_mxm_request->is_send = 0;
+#endif
 
     mxm_recv_req->base.state               = MXM_REQ_NEW;
     ompi_mtl_mxm_set_recv_envelope(mxm_recv_req, comm, src, tag);
 
+#if MXM_API < MXM_VERSION(2,0)
     mxm_recv_req->base.flags               = 0;
+#endif
     mxm_recv_req->base.data_type           = MXM_REQ_DATA_BUFFER;
     mxm_recv_req->base.data.buffer.ptr     = mtl_mxm_request->buf;
     mxm_recv_req->base.data.buffer.length  = mtl_mxm_request->length;

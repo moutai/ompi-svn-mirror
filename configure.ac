@@ -1047,6 +1047,15 @@ if test "x$ompi_cv_c_compiler_vendor" = "xsun"; then
     solaris_use_stlport4="yes"
 fi
 
+# Due to this thread:
+# http://www.open-mpi.org/community/lists/users/2013/02/21356.php and
+# a helpful tip from Dave Goodell, set the precious variables for
+# compilers to "no" that we don't want.  Libtool's m4 configry will
+# interpret this as "I won't be using this language; don't bother
+# setting it up."
+AS_IF([test "$OMPI_WANT_F77_BINDINGS" != "1"],[F77=no FC=no])
+AS_IF([test "$WANT_MPI_CXX_SUPPORT" != "1"],[CXX=no])
+
 dnl Not all versions of LT set the PACKAGE_VERSION
 m4_ifdef([LT_PACKAGE_VERSION], [], [m4_define([LT_PACKAGE_VERSION], [1.5.22])])
 
@@ -1059,6 +1068,40 @@ LT_CONFIG_LTDL_DIR([opal/libltdl], [subproject])
 LTDL_CONVENIENCE
 LT_INIT([dlopen win32-dll])
 ])
+
+# What's the suffix of shared libraries?  Inspired by generated
+# Libtool code (even though we don't support several of these
+# platforms, there didn't seem to be any harm in leaving in some of
+# them, alhtough I did remove some that we have never/will never
+# support, like OS/2).
+OPAL_DYN_LIB_PREFIX=lib
+case $host_os in
+cygwin*)
+    OPAL_DYN_LIB_PREFIX=cyg
+    OPAL_DYN_LIB_SUFFIX=dll
+    ;;
+mingw* | pw32* | cegcc*)
+    OPAL_DYN_LIB_SUFFIX=dll
+    ;;
+darwin* | rhapsody*)
+    OPAL_DYN_LIB_SUFFIX=dylib
+    ;;
+hpux9* | hpux10* | hpux11*)
+    case $host_cpu in
+        ia64*)
+        OPAL_DYN_LIB_SUFFIX=so
+        ;;
+    *)
+        OPAL_DYN_LIB_SUFFIX=sl
+        ;;
+    esac
+    ;;
+*)
+   OPAL_DYN_LIB_SUFFIX=so
+   ;;
+esac
+AC_SUBST(OPAL_DYN_LIB_PREFIX)
+AC_SUBST(OPAL_DYN_LIB_SUFFIX)
 
 OPAL_SETUP_LIBLTDL
 
