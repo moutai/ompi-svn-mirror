@@ -179,13 +179,13 @@ my $a = "autogen.sh";
 $a = "autogen.pl"
     if (-x "autogen.pl");
 print "=== Running $a...\n";
-#do_command("./$a");
+do_command("./$a");
 
 print "=== Running configure...\n";
-#do_command("./configure --enable-dist");
+do_command("./configure --enable-dist");
 
 print "=== Running make dist...\n";
-#do_command("make dist");
+do_command("make dist");
 
 # Make the SRPM.  Use our own $HOME/.rpmmacros file.
 print "=== Creating RPMS:\n";
@@ -223,6 +223,7 @@ $specfile .= $_
 close(SPEC);
 $specfile =~ s/\$VERSION/$version/g;
 $specfile =~ s/\$EXTENSION/bz2/g;
+$specfile =~ s/Provides: mpi/Provides: mpi\nRequires: libusnic/;
 my $specdest = "$ENV{HOME}/RPMS/SPECS/openmpi.spec";
 unlink($specdest);
 open(SPEC, ">$specdest")
