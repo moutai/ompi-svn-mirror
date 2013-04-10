@@ -68,7 +68,7 @@ lookup_sender(ompi_btl_usnic_module_t *module, ompi_btl_usnic_frag_t *frag)
     /* The sender wasn't in the hash table, so do a slow lookup and
        put the result in the hash table */
     sender = ompi_btl_usnic_proc_lookup_endpoint(module, 
-                                                   frag->btl_header->sender);
+                                                 frag->btl_header->sender);
     if (NULL != sender) {
         opal_hash_table_set_value_uint64(&module->senders, 
                                          frag->btl_header->sender, sender);
@@ -106,15 +106,12 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
 #if MSGDEBUG
     memset(src_mac, 0, sizeof(src_mac));
     memset(dest_mac, 0, sizeof(dest_mac));
-    ompi_btl_usnic_sprintf_mac(src_mac, frag->protocol_header->protocol.l2.l2_src_mac);
-    ompi_btl_usnic_sprintf_mac(dest_mac, frag->protocol_header->protocol.l2.l2_dest_mac);
+    ompi_btl_usnic_sprintf_gid_mac(src_mac, &frag->protocol_header->grh.sgid);
+    ompi_btl_usnic_sprintf_gid_mac(dest_mac, &frag->protocol_header->grh.dgid);
 
-    opal_output(0, "Got message from MAC %s, dest_qp=%u, src_qp=%u",
-		src_mac,
-		ntohl(frag->protocol_header->protocol.l2.dest_qp_num),
-		ntohl(frag->protocol_header->protocol.l2.src_qp_num));
-    opal_output(0, "Looking for sender: 0x%016lx (magic: 0x%016lx)",
-		frag->btl_header->sender, frag->btl_header->magic);
+    opal_output(0, "Got message from MAC %s", src_mac);
+    opal_output(0, "Looking for sender: 0x%016lx",
+		frag->btl_header->sender);
 #endif
 
     /* Find out who sent this frag */
@@ -122,10 +119,9 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
     if (FAKE_RECV_FRAG_DROP || OPAL_UNLIKELY(NULL == endpoint)) {
         /* No idea who this was from, so drop it */
 #if MSGDEBUG
-        opal_output(0, "=== Unknown sender; dropped: from MAC %s to MAC %s, qp_num %d, seq %" UDSEQ, 
+        opal_output(0, "=== Unknown sender; dropped: from MAC %s to MAC %s, seq %" UDSEQ, 
                     src_mac, 
                     dest_mac, 
-                    frag->protocol_header->protocol.l2.dest_qp_num,
                     frag->btl_header->seq);
 #endif
         ++module->num_unk_recvs;
@@ -170,10 +166,9 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
         if (seq < endpoint->endpoint_next_contig_seq_to_recv ||
             seq >= endpoint->endpoint_next_contig_seq_to_recv + WINDOW_SIZE) {
 #if MSGDEBUG
-            opal_output(0, "<-- Received MSG ep %p, seq %" UDSEQ " from %s qp %u to %s: outside of window (%" UDSEQ " - %" UDSEQ "), frag %p, module %p -- DROPPED",
+            opal_output(0, "<-- Received MSG ep %p, seq %" UDSEQ " from %s to %s: outside of window (%" UDSEQ " - %" UDSEQ "), frag %p, module %p -- DROPPED",
                         (void*)endpoint, frag->btl_header->seq, 
                         src_mac, 
-                        frag->protocol_header->protocol.l2.src_qp_num,
                         dest_mac,
                         endpoint->endpoint_next_contig_seq_to_recv,
                         (endpoint->endpoint_next_contig_seq_to_recv + 

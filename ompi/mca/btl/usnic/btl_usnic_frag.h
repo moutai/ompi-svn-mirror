@@ -59,24 +59,10 @@ typedef struct ompi_btl_usnic_reg_t {
  * Depends on whether we are IB UD or USNIC UD.
  */
 typedef struct {
-    union {
-	uint8_t raw[40];
-        /* JMS This is temporary: until Upinder fills in the GRH for
-           me properly */
-        struct {
-            /* Ethernet L2 frame */
-            uint8_t    l2_dest_mac[6];
-            uint8_t    l2_src_mac[6];
-            uint16_t   l2_ethertype;
-	    uint8_t    proto_version;
-            uint32_t   dest_qp_num;
-            uint32_t   src_qp_num;
-        } __attribute__((__packed__)) l2;
-        /* IB UD global resource header (GRH), which appears on the
-           receiving side only. */
-        struct ibv_grh grh;
-    } __attribute__((__packed__)) protocol;
-} __attribute__((__packed__)) ompi_btl_usnic_protocol_header_t;
+    /* IB UD global resource header (GRH), which appears on the
+       receiving side only. */
+    struct ibv_grh grh;
+} ompi_btl_usnic_protocol_header_t;
 
 /**
  * usnic header type

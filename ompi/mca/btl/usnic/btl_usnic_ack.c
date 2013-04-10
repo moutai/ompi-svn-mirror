@@ -79,11 +79,10 @@ void ompi_btl_usnic_ack_send(ompi_btl_usnic_module_t *module,
     ompi_btl_usnic_gid_to_mac(&endpoint->endpoint_remote_addr.gid, mac);
     ompi_btl_usnic_sprintf_mac(dest_mac, mac);
 
-    opal_output(0, "--> Sending ACK wr_id 0x%lx, sg_entry length %d, seq %" UDSEQ " to %s, qp %u, pid %u", 
+    opal_output(0, "--> Sending ACK wr_id 0x%lx, sg_entry length %d, seq %" UDSEQ " to %s, qp %u", 
                 wr->wr_id, ack->sg_entry.length, ack->payload.ack[0], 
                 dest_mac,
-                endpoint->endpoint_remote_addr.qp_num,
-                endpoint->endpoint_remote_addr.pid);
+                endpoint->endpoint_remote_addr.qp_num);
 #endif
 
     if (OPAL_UNLIKELY((rc = ibv_post_send(module->qp, wr, &bad_wr)))) {
@@ -248,15 +247,14 @@ void ompi_btl_usnic_ack_timeout_part2(ompi_btl_usnic_module_t *module,
         ompi_btl_usnic_gid_to_mac(&endpoint->endpoint_remote_addr.gid, mac);
 	ompi_btl_usnic_sprintf_mac(dest_mac, mac);
 
-        opal_output(0, "--> Re-sending MSG, seq %" UDSEQ ", hotel room %d, frag 0x%p from %s qp %u to %s, qp %d, pid %u",
+        opal_output(0, "--> Re-sending MSG, seq %" UDSEQ ", hotel room %d, frag 0x%p from %s qp %u to %s, qp %d",
                     sent_frag->frag->btl_header->seq, 
                     sent_frag->hotel_room,
                     (void*)frag, 
                     src_mac, 
                     module->addr.qp_num,
                     dest_mac,
-                    endpoint->endpoint_remote_addr.qp_num,
-                    endpoint->endpoint_remote_addr.pid);
+                    endpoint->endpoint_remote_addr.qp_num);
     }
 #endif
 

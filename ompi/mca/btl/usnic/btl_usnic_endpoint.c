@@ -150,18 +150,16 @@ int ompi_btl_usnic_endpoint_post_send(ompi_btl_usnic_module_t* module,
         ompi_btl_usnic_gid_to_mac(&endpoint->endpoint_remote_addr.gid, mac);
 	ompi_btl_usnic_sprintf_mac(mac_str2, mac);
 
-        opal_output(0, "--> Sending MSG: seq: %" UDSEQ ", sender: 0x%016lx from device %s MAC %s, qp %u, magic: 0x%016lx, room %d, wc len %u, remote MAC %s, qp %u, pid %u",
+        opal_output(0, "--> Sending MSG: seq: %" UDSEQ ", sender: 0x%016lx from device %s MAC %s, qp %u, room %d, wc len %u, remote MAC %s, qp %u",
                     frag->btl_header->seq, 
                     frag->btl_header->sender, 
 		    endpoint->endpoint_module->device->name,
 		    mac_str1,
                     module->addr.qp_num,
-                    frag->btl_header->magic, 
 		    room,
                     frag->sg_entry.length,
 		    mac_str2,
-                    endpoint->endpoint_remote_addr.qp_num,
-                    endpoint->endpoint_remote_addr.pid);
+                    endpoint->endpoint_remote_addr.qp_num);
     }
 #endif
 
