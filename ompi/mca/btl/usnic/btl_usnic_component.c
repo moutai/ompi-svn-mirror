@@ -545,7 +545,7 @@ static int usnic_component_progress(void)
 #if RELIABILITY
     opal_list_item_t *item;
 #endif
-    struct ibv_recv_wr *bad_wr, *repost_recv_head, *next;
+    struct ibv_recv_wr *bad_wr, *repost_recv_head;
     struct ibv_wc* cwc;
     ompi_btl_usnic_module_t* module;
     static struct ibv_wc wc[OMPI_BTL_USNIC_NUM_WC];
@@ -643,25 +643,29 @@ static int usnic_component_progress(void)
 
         /* Re-post all the remaining receive buffers */
         if (OPAL_LIKELY(repost_recv_head)) {
-            /* JMS libusnic is broken -- it only posts 1 buffer at a
-               time.  Remove this loop when it is fixed. */
-            while (repost_recv_head) {
-                /* JMS Do some extra work to ensure the list is
-                   broken */
-                frag = (ompi_btl_usnic_frag_t*)(unsigned long)repost_recv_head->wr_id;
-                assert(!FRAG_STATE_GET(frag, FRAG_RECV_WR_POSTED));
-                assert(OMPI_BTL_USNIC_FRAG_RECV == frag->type);
-
-                next = repost_recv_head->next;
-                repost_recv_head->next = NULL;
-                if (OPAL_UNLIKELY(ibv_post_recv(module->qp, 
-                                                repost_recv_head, &bad_wr) != 0)) {
-                    BTL_ERROR(("error posting recv: %s\n", strerror(errno)));
-                    return OMPI_ERROR;
+#if MSGDEBUG
+            /* For the debugging case, check the state of each
+               fragment */
+            {
+                struct ibv_recv_wr *next = repost_recv_head;
+                while (next) {
+                    /* JMS Do some extra work to ensure the list is
+                       broken */
+                    frag = (ompi_btl_usnic_frag_t*)(unsigned long)repost_recv_head->wr_id;
+                    assert(!FRAG_STATE_GET(frag, FRAG_RECV_WR_POSTED));
+                    assert(OMPI_BTL_USNIC_FRAG_RECV == frag->type);
+                    FRAG_HISTORY(frag, "Re-post: ibv_post_recv");
+                    next = next->next;
                 }
-                FRAG_HISTORY(frag, "Initial ibv_post_recv");
-                repost_recv_head = next;
             }
+#endif
+
+            if (OPAL_UNLIKELY(ibv_post_recv(module->qp, 
+                                            repost_recv_head, &bad_wr) != 0)) {
+                BTL_ERROR(("error posting recv: %s\n", strerror(errno)));
+                return OMPI_ERROR;
+            }
+            repost_recv_head = NULL;
         }
 
         count += num_events;
