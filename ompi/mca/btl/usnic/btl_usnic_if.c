@@ -112,9 +112,28 @@ typedef struct btl_usnic_opal_if_t {
 #endif
     uint32_t            if_bandwidth;
     uint8_t             if_mac[6];
+    int                 if_mtu;
 } btl_usnic_opal_if_t;
 
-static OBJ_CLASS_INSTANCE(btl_usnic_opal_if_t, opal_list_item_t, NULL, NULL);
+static void opal_if_construct(btl_usnic_opal_if_t *obj)
+{
+    memset(obj->if_name, 0, sizeof(obj->if_name));
+    obj->if_index = -1;
+    obj->if_kernel_index = 0;
+    obj->if_flags = 0;
+    obj->if_speed = 0;
+    memset(&obj->if_addr, 0, sizeof(obj->if_addr));
+    obj->if_mask = 0;
+#ifdef __WINDOWS__
+    memset(obj->if_bcast, 0, sizeof(obj->if_bcast));
+#endif
+    obj->if_bandwidth = 0;
+    memset(obj->if_mac, 0, sizeof(obj->if_mac));
+    obj->if_mtu = 0;
+}
+
+static OBJ_CLASS_INSTANCE(btl_usnic_opal_if_t, opal_list_item_t, 
+                          opal_if_construct, NULL);
 static opal_list_t btl_usnic_opal_if_list;
 static bool already_done = false;
 static bool do_not_resolve = false;
@@ -235,6 +254,10 @@ static int btl_usnic_opal_ifinit(void)
                platforms */
             intf->if_mac[0] = intf->if_mac[1] = intf->if_mac[2] =
             intf->if_mac[3] = intf->if_mac[4] = intf->if_mac[5] = 0;
+
+            /* Do not [yet] support getting the MTU from these
+               platforms */
+            intf->if_mtu = 0;
 
             opal_list_append(&btl_usnic_opal_if_list, &(intf->super));
         }   /*  of for loop over ifaddrs list */
@@ -432,8 +455,6 @@ static int btl_usnic_opal_ifinit(void)
             /* generate CIDR and assign to netmask */
             intf->if_mask = prefix(((struct sockaddr_in*) &ifr->ifr_addr)->sin_addr.s_addr);
             
-            opal_list_append(&btl_usnic_opal_if_list, &(intf->super));
-
 #ifdef SIOCGIFHWADDR
             /* get the MAC address */
             if (ioctl(sd, SIOCGIFHWADDR, ifr) < 0) {
@@ -445,6 +466,19 @@ static int btl_usnic_opal_ifinit(void)
             intf->if_mac[0] = intf->if_mac[1] = intf->if_mac[2] =
             intf->if_mac[3] = intf->if_mac[4] = intf->if_mac[5] = 0;
 #endif
+
+#ifdef SIOCGIFMTU
+            /* get the MTU */
+            if (ioctl(sd, SIOCGIFMTU, ifr) < 0) {
+                opal_output(0, "btl_usnic_opal_ifinit: ioctl(SIOCGIFMTU) failed with errno=%d", errno);
+                break;
+            }
+            intf->if_mtu = ifr->ifr_mtu;
+#else
+            intf->if_mtu = 0;
+#endif
+
+            opal_list_append(&btl_usnic_opal_if_list, &(intf->super));
         }
         free(ifconf.ifc_req);
         close(sd);
