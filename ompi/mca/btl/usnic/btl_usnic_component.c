@@ -647,15 +647,13 @@ static int usnic_component_progress(void)
             /* For the debugging case, check the state of each
                fragment */
             {
-                struct ibv_recv_wr *next = repost_recv_head;
-                while (next) {
-                    /* JMS Do some extra work to ensure the list is
-                       broken */
-                    frag = (ompi_btl_usnic_frag_t*)(unsigned long)repost_recv_head->wr_id;
+                struct ibv_recv_wr *wr = repost_recv_head;
+                while (wr) {
+                    frag = (ompi_btl_usnic_frag_t*)(unsigned long)wr->wr_id;
                     assert(!FRAG_STATE_GET(frag, FRAG_RECV_WR_POSTED));
                     assert(OMPI_BTL_USNIC_FRAG_RECV == frag->type);
                     FRAG_HISTORY(frag, "Re-post: ibv_post_recv");
-                    next = next->next;
+                    wr = wr->next;
                 }
             }
 #endif
