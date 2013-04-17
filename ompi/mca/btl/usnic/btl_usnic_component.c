@@ -203,9 +203,9 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
                                                     bool want_progress_threads,
                                                     bool want_mpi_threads)
 {
-    int flags;
+    int happy;
     mca_btl_base_module_t **btls;
-    uint32_t i, max_payload;
+    uint32_t i, max_payload, *vpi;
     ompi_btl_usnic_module_t *module;
     opal_list_item_t *item;
     unsigned short seedv[3];
@@ -238,14 +238,11 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
     seed48(seedv);
 
     /* Find the ports that we want to use */
-    flags = OMPI_COMMON_VERBS_FLAGS_UD;
-    if (!mca_btl_usnic_component.rc_devices_ok) {
-        flags |= OMPI_COMMON_VERBS_FLAGS_NOT_RC;
-    }
     port_list = 
         ompi_common_verbs_find_ports(mca_btl_usnic_component.if_include,
                                      mca_btl_usnic_component.if_exclude,
-                                     flags, mca_btl_base_output);
+                                     OMPI_COMMON_VERBS_FLAGS_UD, 
+                                     mca_btl_base_output);
     if (NULL == port_list || 0 == opal_list_get_size(port_list)) {
         mca_btl_base_error_no_nics("USNIC", "device");
         btls = NULL;
@@ -290,27 +287,31 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         /* This component only works with Cisco VIC/USNIC devices; it
            is not a general verbs UD component.  Reject any ports
            found on devices that are not Cisco VICs. */
-        if (
+        happy = 0;
 #if BTL_USNIC_HAVE_IBV_USNIC
-            /* If we have the IB_*_USNIC constants, then take any
-               device which advertises them */
-            (IBV_TRANSPORT_USNIC == port->device->device->transport_type &&
-             IBV_NODE_USNIC == port->device->device->node_type) ||
+        /* If we have the IB_*_USNIC constants, then take any
+           device which advertises them */
+        if (IBV_TRANSPORT_USNIC == port->device->device->transport_type &&
+            IBV_NODE_USNIC == port->device->device->node_type) {
+            happy = 1;
+        }
 #endif
-            /* Or take any specific device that we know is a Cisco
-               VIC.  Cisco's vendor ID is 0x1137, and Sereno-based
-               VICs are part ID 127. */
-              /* JMS Would be good to put this in a text config file
-                 so that users can patch a binary install of Open MPI
-                 to allow for new VIC product numbers if necessary */
-            (0x1137 == port->device->device_attr.vendor_id &&
-             127 == port->device->device_attr.vendor_part_id)) {
-	    /* Happiness */
-	} else {
+        /* Or take any specific device that we know is a Cisco
+           VIC.  Cisco's vendor ID is 0x1137. */
+        if (!happy && 0x1137 == port->device->device_attr.vendor_id) {
+            for (vpi = mca_btl_usnic_component.vendor_part_ids;
+                 *vpi > 0; ++vpi) {
+                if (port->device->device_attr.vendor_part_id == *vpi) {
+                    happy = 1;
+                    break;
+                }
+            }
+        }
+            
+        /* Is this a usnic? */
+        if (!happy) {
             opal_output_verbose(5, mca_btl_base_output,
-                                "btl:usnic: this is not a usnic (expected vendor/part 0x1137/127, got 0x%x/%d)",
-                                port->device->device_attr.vendor_id,
-                                port->device->device_attr.vendor_part_id);
+                                "btl:usnic: this is not a usnic-capable device");
             --mca_btl_usnic_component.num_modules;
             --i;
             continue;

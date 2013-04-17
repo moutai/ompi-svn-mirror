@@ -30,6 +30,7 @@
 #include <infiniband/verbs.h>
 
 #include "opal/mca/base/mca_base_param.h"
+#include "opal/util/argv.h"
 
 #include "ompi/constants.h"
 #include "ompi/mca/btl/btl.h"
@@ -119,6 +120,7 @@ static int reg_int(const char* param_name,
 int ompi_btl_usnic_component_register(void)
 {
     int val = 0, tmp, ret = 0;
+    char *str, **parts;
 
 #define CHECK(expr) do {\
         tmp = (expr); \
@@ -140,10 +142,22 @@ int ompi_btl_usnic_component_register(void)
                      NULL, &mca_btl_usnic_component.if_exclude,
                      REGSTR_EMPTY_OK));
 
-    CHECK(reg_int("rc_devices_ok",
-                  "Whether it is ok to use RC-capable OpenFabrics devices or not.  Set to 0 to only allow UD-capable-only devices, 1 to allow UD-and-RC-capable devices (default: 0)",
-                  0, &val, 0));
-    mca_btl_usnic_component.rc_devices_ok = (bool) val;
+    /* Cisco Sereno-based VICs are part ID 127 */
+    str = NULL;
+    CHECK(reg_string("vendor_part_ids",
+                     "Comma-delimited list verbs vendor part IDs to search for/use",
+                     "127", &str, 0));
+    parts = opal_argv_split(str, ',');
+    free(str);
+    mca_btl_usnic_component.vendor_part_ids = 
+        calloc(sizeof(uint32_t), opal_argv_count(parts) + 1);
+    if (NULL == mca_btl_usnic_component.vendor_part_ids) {
+        return OPAL_ERR_OUT_OF_RESOURCE;
+    }
+    for (val = 0, str = parts[0]; NULL != str; str = parts[++val]) {
+        mca_btl_usnic_component.vendor_part_ids[val] = (uint32_t) atoi(str);
+    }
+    opal_argv_free(parts);
 
     CHECK(reg_int("stats",
                   "Whether you want stats emitted periodically not (default: 0)",
@@ -158,6 +172,9 @@ int ompi_btl_usnic_component_register(void)
                   "If stats are enabled, output relative stats between the timestemps (vs. cumulative stats since the beginning of the job) (default: 0 -- i.e., absolute)",
                   0, &val, 0));
     mca_btl_usnic_component.stats_relative = (bool) val;
+
+    CHECK(reg_string("mpool", "Name of the memory pool to be used",
+                     "rdma", &mca_btl_usnic_component.usnic_mpool_name, 0));
 
     CHECK(reg_int("gid_index",
                   "GID index to use on verbs device ports",

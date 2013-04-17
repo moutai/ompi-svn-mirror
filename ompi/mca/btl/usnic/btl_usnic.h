@@ -102,8 +102,9 @@ typedef struct ompi_btl_usnic_component_t {
     /** Number of available/initialized BTL modules */
     uint32_t num_modules;
 
-    char* if_include;
-    char* if_exclude;
+    char *if_include;
+    char *if_exclude;
+    uint32_t *vendor_part_ids;
 
     /* Cached hashed version of my ORTE proc name (to stuff in
        protocol headers) */
@@ -117,9 +118,6 @@ typedef struct ompi_btl_usnic_component_t {
 
     /** name of memory pool */
     char* usnic_mpool_name;
-
-    /** is using RC-capable devices ok? */
-    bool rc_devices_ok;
 
     /** Want stats? */
     bool stats_enabled;
