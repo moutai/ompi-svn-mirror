@@ -649,8 +649,6 @@ static int init_qp(ompi_btl_usnic_module_t* module)
        logically false. */
     memset(&qp_attr, 0, sizeof(qp_attr));
     qp_attr.qp_state = IBV_QPS_INIT;
-    qp_attr.pkey_index = mca_btl_usnic_component.verbs_pkey_index;
-    qp_attr.qkey = mca_btl_usnic_component.verbs_qkey;
     qp_attr.port_num = module->port_num;
 
     if (ibv_modify_qp(module->qp, &qp_attr,

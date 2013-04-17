@@ -138,14 +138,6 @@ typedef struct ompi_btl_usnic_component_t {
     /** max completion queue entries per module */
     int32_t cq_num;
 
-    /** Verbs parameters */
-    uint32_t verbs_pkey_index;
-    uint32_t verbs_qkey;
-    uint32_t verbs_service_level;
-
-    /** ethertype */
-    uint16_t ethertype;
-
 #if RELIABILITY
     /** retrans characteristics */
     int retrans_timeout;

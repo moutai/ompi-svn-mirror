@@ -159,9 +159,6 @@ int ompi_btl_usnic_component_register(void)
                   0, &val, 0));
     mca_btl_usnic_component.stats_relative = (bool) val;
 
-    CHECK(reg_string("mpool", "Name of the memory pool to be used",
-                     "rdma", &mca_btl_usnic_component.usnic_mpool_name, 0));
-
     CHECK(reg_int("gid_index",
                   "GID index to use on verbs device ports",
                   0, &mca_btl_usnic_component.gid_index, REGINT_GE_ZERO));
@@ -181,10 +178,6 @@ int ompi_btl_usnic_component_register(void)
         mca_btl_usnic_component.cq_num = 
             mca_btl_usnic_component.rd_num + mca_btl_usnic_component.sd_num;
     }
-
-    CHECK(reg_int("ethertype", "Ethertype",
-                  0x5000, &val, REGINT_GE_ONE));
-    mca_btl_usnic_component.ethertype = (uint32_t) val;
 
 #if RELIABILITY
     CHECK(reg_int("retrans_timeout", "number of miliseconds before retransmitting a frame",

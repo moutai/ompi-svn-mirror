@@ -92,8 +92,6 @@ static void send_frag_constructor(ompi_btl_usnic_frag_t* frag)
     frag->wr_desc.sr_desc.send_flags = IBV_SEND_SIGNALED;
 #endif
     frag->wr_desc.sr_desc.next = NULL;
-    frag->wr_desc.sr_desc.wr.ud.remote_qkey = 
-        mca_btl_usnic_component.verbs_qkey;
 }
 
 
