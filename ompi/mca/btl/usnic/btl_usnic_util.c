@@ -62,7 +62,8 @@ int ompi_btl_usnic_find_ip(ompi_btl_usnic_module_t *module, uint8_t mac[6])
                 OPAL_SUCCESS != btl_usnic_opal_ifindextoaddr(i, &sa, sizeof(sa)) ||
                 OPAL_SUCCESS != btl_usnic_opal_ifindextomask(i, &module->if_cidrmask,
                                                    sizeof(module->if_cidrmask)) ||
-                OPAL_SUCCESS != btl_usnic_opal_ifindextomac(i, module->if_mac)) {
+                OPAL_SUCCESS != btl_usnic_opal_ifindextomac(i, module->if_mac) ||
+                OPAL_SUCCESS != btl_usnic_opal_ifindextomtu(i, &module->if_mtu)) {
                 continue;
             }
 
@@ -73,6 +74,12 @@ int ompi_btl_usnic_find_ip(ompi_btl_usnic_module_t *module, uint8_t mac[6])
                module so that it gets sent in the modex */
             module->addr.ipv4_addr = module->if_ipv4_addr;
             module->addr.cidrmask = module->if_cidrmask;
+
+            /* Since verbs doesn't offer a way to get standard
+               Ethernet MTUs (as of libibverbs 1.1.5, the MTUs are
+               enums, and don't inlcude values for 1500 or 9000), look
+               up the MTU in the corresponding enic interface. */
+            module->addr.mtu = module->if_mtu;
 
             inet_ntop(AF_INET, &(module->if_ipv4_addr),
                       addr_string, sizeof(addr_string));

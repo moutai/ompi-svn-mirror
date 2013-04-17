@@ -41,6 +41,7 @@ typedef struct ompi_btl_usnic_addr_t {
 
     /* JMS For now, we also need the MAC */
     uint8_t mac[6];
+    int mtu;
 } ompi_btl_usnic_addr_t;
 
 

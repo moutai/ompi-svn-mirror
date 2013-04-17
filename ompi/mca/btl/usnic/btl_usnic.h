@@ -175,6 +175,7 @@ typedef struct ompi_btl_usnic_module_t {
     uint32_t if_ipv4_addr;
     uint32_t if_cidrmask;
     uint8_t if_mac[6];
+    int if_mtu;
 
     /** desired send, receive, and completion queue entries (from MCA
         params; cached here on the component because the MCA param

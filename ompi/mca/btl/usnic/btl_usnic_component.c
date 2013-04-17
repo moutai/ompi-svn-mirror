@@ -420,7 +420,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
 
         /* Find the max payload this port can handle */
         max_payload = 
-            ompi_common_verbs_mtu(&port->port_attr) - /* start with the MTU */
+            module->if_mtu - /* start with the MTU */
             sizeof(ompi_btl_usnic_protocol_header_t) - /* subtract size of
                                                            the protocol frame 
                                                            header */
