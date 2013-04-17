@@ -1241,6 +1241,29 @@ int btl_usnic_opal_ifindextomac(int if_index, uint8_t mac[6])
 
 /* 
  *  Lookup the interface by opal_list index and return the 
+ *  MTU assigned to the interface.
+ */
+
+int btl_usnic_opal_ifindextomtu(int if_index, int *if_mtu)
+{
+    btl_usnic_opal_if_t* intf;
+    int rc = btl_usnic_opal_ifinit();
+    if (rc != OPAL_SUCCESS)
+        return rc;
+
+    for (intf =  (btl_usnic_opal_if_t*)opal_list_get_first(&btl_usnic_opal_if_list);
+        intf != (btl_usnic_opal_if_t*)opal_list_get_end(&btl_usnic_opal_if_list);
+        intf =  (btl_usnic_opal_if_t*)opal_list_get_next(intf)) {
+        if (intf->if_index == if_index) {
+            *if_mtu = intf->if_mtu;
+            return OPAL_SUCCESS;
+        }
+    }
+    return OPAL_ERROR;
+}
+
+/* 
+ *  Lookup the interface by opal_list index and return the 
  *  flags assigned to the interface.
  *
  *  Bug: Make return type portable (compatible with Windows)
