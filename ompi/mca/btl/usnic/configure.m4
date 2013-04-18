@@ -33,13 +33,12 @@ AC_DEFUN([MCA_btl_usnic_CONFIG],[
     # (note: if we have one, we have both)
     btl_usnic_have_ibv_usnic=0
     AS_IF([test "$btl_usnic_happy" = "yes"],
-          [AC_MSG_CHECKING([for IBV_NODE_USNIC/IBV_TRANSPORT_USNIC])
-           AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[ #include <infiniband/verbs.h>
-]],
-[[int i = IBV_NODE_USNIC;]])],
-                             [msg=yes btl_usnic_have_ibv_usnic=1],
-                             [msg=no])
-           AC_MSG_RESULT([$msg])]
+          [AC_CHECK_DECL([IBV_NODE_USNIC], 
+                         [btl_usnic_have_ibv_usnic=1],
+                         [],
+                         [ #include <infiniband/verbs.h> 
+])
+          ]
     )
     AC_DEFINE_UNQUOTED([BTL_USNIC_HAVE_IBV_USNIC], 
                        [$btl_usnic_have_ibv_usnic],
