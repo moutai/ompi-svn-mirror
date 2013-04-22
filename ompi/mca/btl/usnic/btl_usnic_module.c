@@ -652,8 +652,7 @@ static int init_qp(ompi_btl_usnic_module_t* module)
     qp_attr.port_num = module->port_num;
 
     if (ibv_modify_qp(module->qp, &qp_attr,
-                      IBV_QP_STATE | IBV_QP_PKEY_INDEX |
-                      IBV_QP_PORT | IBV_QP_QKEY)) {
+                      IBV_QP_STATE | IBV_QP_PORT)) {
         BTL_ERROR(("error modifying QP to INIT: %s", strerror(errno)));
         ibv_destroy_qp(module->qp);
         module->qp = NULL;
