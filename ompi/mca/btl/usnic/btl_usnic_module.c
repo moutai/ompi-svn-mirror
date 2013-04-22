@@ -40,6 +40,7 @@
 #include "btl_usnic_frag.h"
 #include "btl_usnic_proc.h"
 #include "btl_usnic_endpoint.h"
+#include "btl_usnic_util.h"
 
 #define MAX_STATS_NUM_ENDPOINTS 256
 
@@ -906,7 +907,7 @@ ompi_btl_usnic_module_t ompi_btl_usnic_module_template = {
 #if USE_WITH_TCP
         MCA_BTL_EXCLUSIVITY_LOW + 100, /* same exclusivity as TCP */
 #else
-        MCA_BTL_DEFAULT,
+        MCA_BTL_EXCLUSIVITY_DEFAULT,
 #endif
         0, /* latency */
         0, /* bandwidth */

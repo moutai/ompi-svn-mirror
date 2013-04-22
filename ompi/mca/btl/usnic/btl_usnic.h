@@ -55,7 +55,7 @@
    the failed-to-resend-frag. */
 #define WANT_FAIL_TO_RESEND_FRAG 0
 /* Set to use the same exclusivity as the TCP BTL */
-#define USE_WITH_TCP 1
+#define USE_WITH_TCP 0
 
 #include "btl_usnic_endpoint.h"
 
