@@ -192,7 +192,11 @@ AC_DEFUN([OMPI_CHECK_OPENIB],[
                AC_CHECK_FUNCS([ibv_create_xrc_rcv_qp], [$1_have_xrc=1])
            fi
 
-           if test "no" != "$enable_openib_dynamic_sl"; then
+# Change for Cisco Open MPI: default to disabling the Openib dynamic
+# SL stuff because it flat-out doesn't work with upstream libibverbs,
+# and per the comment below, we *can't* check for it here in
+# configure.  :-(
+           if test "yes" = "$enable_openib_dynamic_sl"; then
                # We need ib_types.h file, which is installed with opensm-devel
                # package. However, ib_types.h has a bad include directive,
                # which will cause AC_CHECK_HEADER to fail.
