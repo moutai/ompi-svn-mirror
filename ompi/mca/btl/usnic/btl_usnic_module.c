@@ -904,17 +904,13 @@ ompi_btl_usnic_module_t ompi_btl_usnic_module_template = {
         0, /* rdma_pipeline_send_length */
         0, /* rdma_pipeline_frag_size */
         0, /* min_rdma_pipeline_size */
-#if USE_WITH_TCP
-        MCA_BTL_EXCLUSIVITY_LOW + 100, /* same exclusivity as TCP */
-#else
         MCA_BTL_EXCLUSIVITY_DEFAULT,
-#endif
         0, /* latency */
         0, /* bandwidth */
         MCA_BTL_FLAGS_SEND,
         usnic_add_procs,
         usnic_del_procs,
-        NULL,
+        NULL, /*ompi_btl_usnic_register*/
         usnic_finalize,
         usnic_alloc,
         usnic_free,
@@ -925,7 +921,7 @@ ompi_btl_usnic_module_t ompi_btl_usnic_module_template = {
         NULL, /*ompi_btl_usnic_put */
         NULL, /*ompi_btl_usnic_get */
         mca_btl_base_dump,
-        NULL, /* mpool */
+        NULL, /* mpool -- to be filled in later */
         NULL, /* register error */
         usnic_ft_event
     }
