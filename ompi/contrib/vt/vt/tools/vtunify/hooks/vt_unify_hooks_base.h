@@ -2,7 +2,7 @@
  * VampirTrace
  * http://www.tu-dresden.de/zih/vampirtrace
  *
- * Copyright (c) 2005-2012, ZIH, TU Dresden, Federal Republic of Germany
+ * Copyright (c) 2005-2013, ZIH, TU Dresden, Federal Republic of Germany
  *
  * Copyright (c) 1998-2005, Forschungszentrum Juelich, Juelich Supercomputing
  *                          Centre, Federal Republic of Germany
@@ -35,8 +35,8 @@ private:
    // trigger phase hook
    void triggerPhaseHook( const HooksC::PhaseTypeT & phase )
    {
-      assert( m_phaseMethods.size() > (uint32_t)phase );
-      assert( m_phaseMethods[phase] != 0 );
+      vt_assert( m_phaseMethods.size() > (uint32_t)phase );
+      vt_assert( m_phaseMethods[phase] != 0 );
 
       ( this->*( m_phaseMethods[phase] ) )();
    }
@@ -45,8 +45,8 @@ private:
    void triggerReadRecordHook( const HooksC::RecordTypeT & rectype,
                                HooksC::VaArgsT & args )
    {
-      assert( m_readRecHookMethods.size() > (uint32_t)rectype );
-      assert( m_readRecHookMethods[rectype] != 0 );
+      vt_assert( m_readRecHookMethods.size() > (uint32_t)rectype );
+      vt_assert( m_readRecHookMethods[rectype] != 0 );
 
       ( this->*( m_readRecHookMethods[rectype] ) )( args );
    }
@@ -55,8 +55,8 @@ private:
    void triggerWriteRecordHook( const HooksC::RecordTypeT & rectype,
                                 HooksC::VaArgsT & args )
    {
-      assert( m_writeRecHookMethods.size() > (uint32_t)rectype );
-      assert( m_writeRecHookMethods[rectype] != 0 );
+      vt_assert( m_writeRecHookMethods.size() > (uint32_t)rectype );
+      vt_assert( m_writeRecHookMethods[rectype] != 0 );
 
       ( this->*( m_writeRecHookMethods[rectype] ) )( args );
    }

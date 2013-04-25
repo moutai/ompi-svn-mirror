@@ -1,5 +1,5 @@
 /*
- This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2012.
+ This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2013.
  Authors: Andreas Knuepfer, Robert Dietrich, Matthias Jurenz
 */
 
@@ -403,9 +403,6 @@ bool CreateCSV( AllData& alldata ) {
                         case STAT_TYPE_COLLOP:
                             write_collop_data( alldata, csv_file,
                                 csv_file_name );
-                            break;
-                        default:
-                            assert( 0 );
                             break;
 
                     }

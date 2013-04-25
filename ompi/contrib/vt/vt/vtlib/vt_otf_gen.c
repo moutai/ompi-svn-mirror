@@ -2,7 +2,7 @@
  * VampirTrace
  * http://www.tu-dresden.de/zih/vampirtrace
  *
- * Copyright (c) 2005-2012, ZIH, TU Dresden, Federal Republic of Germany
+ * Copyright (c) 2005-2013, ZIH, TU Dresden, Federal Republic of Germany
  *
  * Copyright (c) 1998-2005, Forschungszentrum Juelich, Juelich Supercomputing
  *                          Centre, Federal Republic of Germany
@@ -242,7 +242,7 @@ VTGen* VTGen_open(const char* tname, const char* tnamesuffix,
 
 void VTGen_guarantee(VTGen* gen, uint64_t* time, size_t size)
 {
-  if (time)
+  if (!time)
   {
     VTGEN_ALLOC(gen, VTGEN_ALIGN_LENGTH(size));
   }

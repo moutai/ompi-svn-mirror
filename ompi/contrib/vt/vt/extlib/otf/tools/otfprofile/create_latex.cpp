@@ -1,5 +1,5 @@
 /*
- This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2012.
+ This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2013.
  Authors: Andreas Knuepfer, Robert Dietrich, Matthias Jurenz
  */
 
@@ -908,6 +908,9 @@ static void write_Dispersion(fstream& tex, struct AllData& alldata)
   tex << "\\end{tikzpicture}" << endl;
   tex << "}" << endl;
 
+  const std::ios_base::fmtflags tex_flags_sav = tex.flags();
+  const std::streamsize tex_prec_sav = tex.precision();
+
   tex.setf(ios::fixed, ios::floatfield);
   tex.precision(7);
 
@@ -934,6 +937,9 @@ static void write_Dispersion(fstream& tex, struct AllData& alldata)
     tex << "\\verb|" << func_name << "|";
 
     if((factor <= 0) | (lowq < 0) | (median < 0) | (topq < 0)){
+      const std::ios_base::fmtflags cout_flags_sav = std::cout.flags();
+      const std::streamsize cout_prec_sav = std::cout.precision();
+
       cout.setf(ios::scientific, ios::floatfield);
       cout.precision(5);
 
@@ -943,6 +949,9 @@ static void write_Dispersion(fstream& tex, struct AllData& alldata)
           << "median: " << it->second.excl_time_median << ", "
           << "top quartile: " << it->second.excl_time_top_quartile << ", "
           << "maximum: " << it->second.excl_time_maximum << endl;
+
+      cout.setf(cout_flags_sav);
+      cout.precision(cout_prec_sav);
 
       count++;
       it++;
@@ -1016,11 +1025,10 @@ static void write_Dispersion(fstream& tex, struct AllData& alldata)
   }
 
   tex << "\\end{flushleft}" << endl << endl;
-
-  tex.setf(ios::floatfield);
-  tex.precision(7);
-
   tex << "\\newpage" << endl << endl;
+
+  tex.setf(tex_flags_sav);
+  tex.precision(tex_prec_sav);
 }
 
  /*
@@ -1269,6 +1277,9 @@ static void write_Dispersion_callpath(fstream& tex, struct AllData& alldata) {
         pageSize += 1;
         tex << "\\verb|" << func_name << "|";
         if ((factor <= 0) | (lowq < 0) | (median < 0) | (topq < 0)) {
+            const std::ios_base::fmtflags cout_flags_sav = std::cout.flags();
+            const std::streamsize cout_prec_sav = std::cout.precision();
+
             cout.setf(ios::scientific, ios::floatfield);
             cout.precision(5);
 
@@ -1279,6 +1290,9 @@ static void write_Dispersion_callpath(fstream& tex, struct AllData& alldata) {
                     << it->second.excl_time_top_quartile << ", " << "95%: "
                     << it->second.excl_time_95_percent << ", " << "maximum: "
                     << it->second.excl_time_maximum << endl;
+
+            cout.setf(cout_flags_sav);
+            cout.precision(cout_prec_sav);
 
             count++;
             it++;
@@ -1487,6 +1501,9 @@ static void write_Dispersion_callpath(fstream& tex, struct AllData& alldata) {
 
             label[countc] = func_name;
             if ((factor <= 0) | (lowq < 0) | (median < 0) | (topq < 0)) {
+                const std::ios_base::fmtflags cout_flags_sav = std::cout.flags();
+                const std::streamsize cout_prec_sav = std::cout.precision();
+
                 cout.setf(ios::scientific, ios::floatfield);
                 cout.precision(5);
 
@@ -1498,6 +1515,9 @@ static void write_Dispersion_callpath(fstream& tex, struct AllData& alldata) {
                         << "top quartile: "
                         << itc->second.excl_time_top_quartile << ", "
                         << "maximum: " << itc->second.excl_time_maximum << endl;
+
+                cout.setf(cout_flags_sav);
+                cout.precision(cout_prec_sav);
 
                 countc++;
                 itc++;
@@ -1716,6 +1736,12 @@ static void write_Dispersion_histogram(fstream& tex, struct AllData& alldata) {
     const unsigned int BP_WIDTH = 15;
     const unsigned int BP_HEIGHT = 7;
 
+    const std::ios_base::fmtflags tex_flags_sav = tex.flags();
+    const std::streamsize tex_prec_sav = tex.precision();
+
+    tex.setf(ios::floatfield);
+    tex.precision(7);
+
     tex << "\\begin{center}" << endl;
     tex << "{\\Large \\bf Top 20 Dispersion of Functions}";
     tex << endl << "\\bigskip" << endl;
@@ -1819,6 +1845,9 @@ static void write_Dispersion_histogram(fstream& tex, struct AllData& alldata) {
         it++;
         count++;
     }
+
+    tex.setf(tex_flags_sav);
+    tex.precision(tex_prec_sav);
 }
 
 /*
@@ -1924,25 +1953,40 @@ template<class type> static void write_ybarPlotHead(fstream& tex,
 
     if (cclassType == OTF_COLLECTIVE_TYPE_UNKNOWN) {
         title = "P2P";
+        switch (metricType) {
+        case INVOCATIONS:
+            title += " Number of Messages";
+            metric = "";
+            break;
+        case DURATION:
+            title += " Accumulated Message Transfer Time";
+            metric = "Seconds";
+            break;
+        case MSGLENGTH:
+            title += " Aggregated Message Volume";
+            metric = "Bytes";
+            break;
+        default:
+            break;
+        }
     } else {
         collectiveId2String(cclassType, title);
-    }
-
-    switch (metricType) {
-    case INVOCATIONS:
-        title += " Invocations";
-        metric = "";
-        break;
-    case DURATION:
-        title += " Duration";
-        metric = "sec";
-        break;
-    case MSGLENGTH:
-        title += " Message Length";
-        metric = "byte";
-        break;
-    default:
-        break;
+        switch (metricType) {
+        case INVOCATIONS:
+            title += " Number of Invocations";
+            metric = "";
+            break;
+        case DURATION:
+            title += " Accumulated Duration";
+            metric = "Seconds";
+            break;
+        case MSGLENGTH:
+            title += " Aggregated Data Volume";
+            metric = "Bytes";
+            break;
+        default:
+            break;
+        }
     }
 
     tex << "title=" << title;
@@ -2493,7 +2537,7 @@ static void write_p2pMsgRateMatrix(fstream& tex, struct AllData& alldata) {
         return;
     }
 
-    tex << "\\center{\\Large \\bf P2P - Message Rate (average)}" << endl;
+    tex << "\\center{\\Large \\bf P2P - Message Data Rate (average)}" << endl;
     tex << "\\bigskip" << endl << endl;
 
     tex << "\\begin{center}" << endl;
@@ -2561,7 +2605,7 @@ static void write_p2pMsgRateMatrix(fstream& tex, struct AllData& alldata) {
     char quant = ' ';
     uint64_t div = getScaleQuantifierLog2(minDataRate, maxDataRate, quant);
     string unit = string(&quant, 1);
-    unit.append("Byte/s");
+    unit.append("Bytes/sec");
     maxDataRate /= div;
     minDataRate /= div;
 
@@ -2575,8 +2619,8 @@ static void write_p2pMsgRateMatrix(fstream& tex, struct AllData& alldata) {
     while (it != itend) {
         if (it->second.bytes_send.cnt && it->second.duration_send.cnt
                 && (it->second.duration_send.sum > 0)) {
-            uint64_t x = rankToPos.find(it->first.a)->second; //pos for rank
-            uint64_t y = gridDim - 1 - rankToPos.find(it->first.b)->second; //pos for receiving peer
+            uint64_t x = rankToPos.find(it->first.b)->second; //pos for receiver
+            uint64_t y = gridDim - 1 - rankToPos.find(it->first.a)->second; //pos for sender
             float r, g, b;
 
             /* @DEBUG
@@ -3138,7 +3182,7 @@ static void write_p2pMsgRateHist(fstream& tex, struct AllData& alldata) {
     if (it == itend)
         return;
 
-    tex << "\\center{\\Large \\bf P2P - Message Rate Histogram}" << endl;
+    tex << "\\center{\\Large \\bf P2P - Message Data Rate Histogram}" << endl;
     tex << "\\bigskip" << endl << endl;
 
     tex << "\\begin{center}" << endl;
@@ -3253,11 +3297,11 @@ static void write_p2pMsgRateHist(fstream& tex, struct AllData& alldata) {
 
     // draw y axis description
     tex << "\\node[rotate=90] at (-2," << (maxMsgRate - minMsgRate) / 2.0
-            << ") {rate [byte/sec]};" << endl;
+            << ") {Average Data Rate [Bytes/sec]};" << endl;
 
     // draw x axis description
     tex << "\\node at (" << (maxMsgLen - minMsgLen + 1) / xTileFac / 2.0
-            << ", -1.5) {message length [byte]};" << endl;
+            << ", -1.5) {Message Volume [Bytes]};" << endl;
 
     tex << "\\end{tikzpicture}\\bigskip" << endl << endl;
     tex << "\\begin{tikzpicture} [step=1cm,scale=" << scale
@@ -3274,7 +3318,7 @@ static void write_p2pMsgRateHist(fstream& tex, struct AllData& alldata) {
     std::locale prev = tex.imbue(std::locale(std::locale(), &facet));
 
     tex << "\\node at (" << colorsteps / 2.0 + 1
-            << ", 0) {Number of Invocations};" << endl;
+            << ", 0) {Number of Messages};" << endl;
 
     //cout << "maxCount: " << maxCount << " colorsteps: " << colorsteps << endl;
 
@@ -3436,7 +3480,7 @@ bool CreateTex(AllData& alldata) {
 
                 cerr << "ERROR: Could not create PDF file from '"
                 << tex_file_name << "'. "
-                << PDFTEX << "returned with exit code "
+                << PDFTEX << " returned with exit code "
                 << es << "." << endl;
                 error= true;
                 break;

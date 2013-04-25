@@ -1,5 +1,5 @@
 /*
- This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2012.
+ This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2013.
  Authors: Andreas Knuepfer, Robert Dietrich, Matthias Jurenz
 */
 
@@ -601,8 +601,7 @@ static void share_profiledata( AllData& alldata ) {
           }
     }
     delete[] buffer;
-    if(callpath_length > 0)
-        delete[] callpath;
+    delete[] callpath;
 }
 #endif /* OTFPROFILE_MPI */
 

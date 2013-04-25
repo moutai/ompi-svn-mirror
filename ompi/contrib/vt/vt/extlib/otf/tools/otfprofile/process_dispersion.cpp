@@ -1,5 +1,5 @@
 /*
- This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2012.
+ This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2013.
  Authors: Andreas Knuepfer, Robert Dietrich, Matthias Jurenz
  */
 
@@ -343,8 +343,8 @@ bool ProcessDispersion( AllData& alldata ) {
 
 
                 uint32_t k=0;
-                callpathcount = (callpathcount *
-                            ((double)alldata.params.dispersion.reduction/100));
+                callpathcount = (uint64_t)((double)callpathcount *
+                            ((double)alldata.params.dispersion.reduction/100.0));
 
                 for (uint64_t i = 0; iter != iter_end; i++)
                 {

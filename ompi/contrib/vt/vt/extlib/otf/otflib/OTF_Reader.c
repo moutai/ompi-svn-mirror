@@ -1,5 +1,5 @@
 /*
- This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2012.
+ This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2013.
  Authors: Andreas Knuepfer, Holger Brunst, Ronny Brendel, Thomas Kriebitzsch
 */
 
@@ -1032,6 +1032,8 @@ int OTF_Reader_init( OTF_Reader* reader ) {
 	reader->snapshotsHeap= NULL;
 	reader->statisticsHeap= NULL;
 	reader->markerHeap= NULL;
+
+	reader->mc= NULL;
 
 	reader->minTime= 0;
 	reader->maxTime= (uint64_t) -1;

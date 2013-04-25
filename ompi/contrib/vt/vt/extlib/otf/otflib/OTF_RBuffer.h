@@ -1,5 +1,5 @@
 /*
- This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2012.
+ This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2013.
  Authors: Andreas Knuepfer, Holger Brunst, Ronny Brendel, Thomas Kriebitzsch
 */
 
@@ -28,10 +28,14 @@
 #include "OTF_KeyValue.h"
 
 /* *** some macros *** ****************************************** */
-#define PARSE_ERROR( buffer ) \
-	OTF_Error( "Parse error in function %s, file: %s, line: %i:\n %s\n", \
-		__FUNCTION__, __FILE__, __LINE__, OTF_RBuffer_printRecord( buffer ) );
-
+#define PARSE_ERROR( buffer ) { \
+	char* record = OTF_RBuffer_printRecord( buffer ); \
+	if ( NULL != record ) { \
+		OTF_Error( "Parse error in function %s, file: %s, line: %i:\n %s\n", \
+			__FUNCTION__, __FILE__, __LINE__, record ); \
+		free( record ); \
+	} \
+}
 
 #ifdef __cplusplus
 extern "C" {

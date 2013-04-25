@@ -1,5 +1,5 @@
 /*
- This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2012.
+ This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2013.
  Authors: Andreas Knuepfer, Holger Brunst, Ronny Brendel, Thomas Kriebitzsch
 */
 
@@ -459,7 +459,7 @@ int compressFile( const char* filename, const char* outfilename,
 		level, blocksize, 
 		(unsigned long long) totalout, 
 		(unsigned long long) totalin, 
-		100.0 * ((double) totalout) / ((double) totalin), 
+		100.0 * ((double) totalout) / (double)((0 < totalin) ? totalin : 1),
 		time );
 
 	deflateEnd( &z );
@@ -582,7 +582,7 @@ int decompressFile( const char* infilename, const char* outfilename, uint32_t bl
 		blocksize, 
 		(unsigned long long) totalin, 
 		(unsigned long long) totalout, 
-		100.0 * ((double) totalin) / ((double) totalout), 
+		100.0 * ((double) totalin) / (double)((0 < totalout) ? totalout : 1), 
 		time );
 
 	/* finalize everything */

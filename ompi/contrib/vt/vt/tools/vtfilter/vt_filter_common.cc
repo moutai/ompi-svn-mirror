@@ -2,7 +2,7 @@
  * VampirTrace
  * http://www.tu-dresden.de/zih/vampirtrace
  *
- * Copyright (c) 2005-2012, ZIH, TU Dresden, Federal Republic of Germany
+ * Copyright (c) 2005-2013, ZIH, TU Dresden, Federal Republic of Germany
  *
  * Copyright (c) 1998-2005, Forschungszentrum Juelich, Juelich Supercomputing
  *                          Centre, Federal Republic of Germany
@@ -65,15 +65,15 @@ FilterCommonC::prepareProgress( const uint64_t& maxBytes )
       // allocate memory for some arrays
       //
       m_progress.recvBuffers = new uint64_t[m_numWorkerRanks-1];
-      assert( m_progress.recvBuffers );
+      vt_assert( m_progress.recvBuffers );
       m_progress.recvRequests = new MPI_Request[m_numWorkerRanks-1];
-      assert( m_progress.recvRequests );
+      vt_assert( m_progress.recvRequests );
       m_progress.recvStatuses = new MPI_Status[m_numWorkerRanks-1];
-      assert( m_progress.recvStatuses );
+      vt_assert( m_progress.recvStatuses );
       m_progress.recvIndices = new VT_MPI_INT[m_numWorkerRanks-1];
-      assert( m_progress.recvIndices );
+      vt_assert( m_progress.recvIndices );
       m_progress.rankCurBytes = new uint64_t[m_numWorkerRanks-1];
-      assert( m_progress.rankCurBytes );
+      vt_assert( m_progress.rankCurBytes );
 
       // initialize arrays
       //

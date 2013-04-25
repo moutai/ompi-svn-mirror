@@ -2,7 +2,7 @@
  * VampirTrace
  * http://www.tu-dresden.de/zih/vampirtrace
  *
- * Copyright (c) 2005-2012, ZIH, TU Dresden, Federal Republic of Germany
+ * Copyright (c) 2005-2013, ZIH, TU Dresden, Federal Republic of Germany
  *
  * Copyright (c) 1998-2005, Forschungszentrum Juelich, Juelich Supercomputing
  *                          Centre, Federal Republic of Germany
@@ -60,7 +60,7 @@ TimeSyncC::initialize()
          // create instance of class ETimeSyncC
          //
          m_eTimeSync = new ETimeSyncC();
-         assert( m_eTimeSync );
+         vt_assert( m_eTimeSync );
 
          MASTER
          {

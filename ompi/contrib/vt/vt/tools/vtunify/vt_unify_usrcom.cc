@@ -2,7 +2,7 @@
  * VampirTrace
  * http://www.tu-dresden.de/zih/vampirtrace
  *
- * Copyright (c) 2005-2012, ZIH, TU Dresden, Federal Republic of Germany
+ * Copyright (c) 2005-2013, ZIH, TU Dresden, Federal Republic of Germany
  *
  * Copyright (c) 1998-2005, Forschungszentrum Juelich, Juelich Supercomputing
  *                          Centre, Federal Republic of Germany
@@ -102,7 +102,7 @@ UserComC::share()
 {
    bool error = false;
 
-   assert( NumRanks > 1 );
+   vt_assert( NumRanks > 1 );
 
    // block until all ranks have reached this point
    CALL_MPI( MPI_Barrier( MPI_COMM_WORLD ) );
@@ -160,7 +160,7 @@ UserComC::share()
    // allocate memory for the send/receive buffer
    //
    buffer = new char[buffer_size];
-   assert( buffer );
+   vt_assert( buffer );
 
    MASTER
    {

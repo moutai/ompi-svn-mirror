@@ -2,7 +2,7 @@
  * VampirTrace
  * http://www.tu-dresden.de/zih/vampirtrace
  *
- * Copyright (c) 2005-2012, ZIH, TU Dresden, Federal Republic of Germany
+ * Copyright (c) 2005-2013, ZIH, TU Dresden, Federal Republic of Germany
  *
  * Copyright (c) 1998-2005, Forschungszentrum Juelich, Juelich Supercomputing
  *                          Centre, Federal Republic of Germany
@@ -123,7 +123,7 @@ main( int argc, char ** argv )
     MASTER
     {
       OTF_FileManager* manager = OTF_FileManager_open( 1 );
-      assert( manager );
+      vt_assert( manager );
 
       OTF_Reader* reader =
         OTF_Reader_open( Params.input_trcfile.c_str(), manager );

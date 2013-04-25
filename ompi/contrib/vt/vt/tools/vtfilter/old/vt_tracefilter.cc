@@ -2,7 +2,7 @@
  * VampirTrace
  * http://www.tu-dresden.de/zih/vampirtrace
  *
- * Copyright (c) 2005-2012, ZIH, TU Dresden, Federal Republic of Germany
+ * Copyright (c) 2005-2013, ZIH, TU Dresden, Federal Republic of Germany
  *
  * Copyright (c) 1998-2005, Forschungszentrum Juelich, Juelich Supercomputing
  *                          Centre, Federal Republic of Germany
@@ -34,43 +34,7 @@
 	newly created filter file.
 */
 
-#include "config.h"
-
-#if defined(HAVE_OMP) && HAVE_OMP
-  // disable OpenMP under the following circumstances:
-
-  // on NEC SX platforms (causes "internal compiler error")
-# if defined(_SX)
-#   undef HAVE_OMP
-
-  // on MacOS X using GCC < v4.5
-  // causes "undefined reference to ___builtin_expect()"
-  // (induced by assert()'s within OpenMP-parallel regions)
-# elif (defined(__APPLE__) && defined(__MACH__) && defined(__GNUC__) && \
-       (__GNUC__ < 4 || (__GNUC__ == 4 &&  __GNUC_MINOR__ < 5)))
-#   undef HAVE_OMP
-
-  // using Open64 < v4.2.4 (causes "internal compiler error")
-# elif defined(__OPEN64__)
-#   if !defined(__OPENCC__) || !defined(__OPENCC_MINOR__) || !defined(__OPENCC_PATCHLEVEL__)
-      // unknown compiler version; disable OpenMP to be on the safe side
-#     undef HAVE_OMP
-#   else
-      // __OPENCC_PATCHLEVEL__ can be empty; redefine it to 0
-#     if !(__OPENCC_PATCHLEVEL__ + 0)
-#       undef __OPENCC_PATCHLEVEL__
-#       define __OPENCC_PATCHLEVEL__ 0
-#     endif
-      // disable OpenMP, if compiler version is less than 4.2.4
-#     if __OPENCC__ < 4 || (__OPENCC__ == 4 && (__OPENCC_MINOR__ < 2 || (__OPENCC_MINOR__ == 2 && __OPENCC_PATCHLEVEL__ < 4)))
-#       undef HAVE_OMP
-#     endif
-#   endif
-# endif // __OPEN64__
-#endif // HAVE_OMP
-#if defined(HAVE_OMP) && HAVE_OMP
-# include <omp.h>
-#endif // HAVE_OMP
+#include "vt_filter_config.h"
 
 #include "vt_filterc.h"
 #include "vt_otfhandler.h"
@@ -79,8 +43,9 @@
 #include <fstream>
 #include <stdlib.h>
 #include <string.h>
-
-#include <assert.h>
+#if defined(HAVE_OMP) && HAVE_OMP
+#	include <omp.h>
+#endif // HAVE_OMP
 
 #ifdef VT_MPI
 #	define MASTER if( MyRank == 0 )
@@ -411,7 +376,7 @@ int main( int argc, char** argv ) {
 		OTF_HandlerArray* phandlers;
 
 		pmanager= OTF_FileManager_open( nfiles );
-		assert( pmanager );
+		vt_assert( pmanager );
 		preader = OTF_Reader_open( intrace.c_str(), pmanager );
 		if( !preader ) {
 			MASTER cerr << "Could not open input trace file \"" << intrace << "\". Aborting" << endl;
@@ -421,9 +386,9 @@ int main( int argc, char** argv ) {
 			exit(1);
 		}
 		phandlers = OTF_HandlerArray_open();
-		assert( phandlers );
+		vt_assert( phandlers );
 		OTF_MasterControl* pmc = OTF_Reader_getMasterControl( preader );
-		assert( pmc );
+		vt_assert( pmc );
 			
 		OTF_HandlerArray_setHandler( phandlers,
 			(OTF_FunctionPointer*) handleDefTimerResolution, OTF_DEFTIMERRESOLUTION_RECORD );
@@ -482,9 +447,9 @@ int main( int argc, char** argv ) {
 
 		/* open the mastercontrol file */
 		OTF_FileManager* mcmanager = OTF_FileManager_open(nfiles);
-		assert(mcmanager);
+		vt_assert(mcmanager);
 		OTF_MasterControl* mc = OTF_MasterControl_new(mcmanager);
-		assert(mc);
+		vt_assert(mc);
 		if( 0 == OTF_MasterControl_read( mc, intrace.c_str() ) ) {
 			MASTER cerr << "Could not read OTF Master Control File \"" << intrace << ".otf\". Aborting" << endl;
 #ifdef VT_MPI
@@ -548,11 +513,11 @@ int main( int argc, char** argv ) {
 			uint32_t streamid = OTF_MasterControl_getEntryByIndex(mc,(uint32_t)streamindex)->argument;
 
 			manager= OTF_FileManager_open( nfiles );
-			assert( manager );
+			vt_assert( manager );
 			rstream = OTF_RStream_open( intrace.c_str(), streamid, manager );
-			assert( rstream );
+			vt_assert( rstream );
 			handlers = OTF_HandlerArray_open();
-			assert( handlers );
+			vt_assert( handlers );
 
 			
 			OTF_HandlerArray_setHandler( handlers,
@@ -789,9 +754,9 @@ int main( int argc, char** argv ) {
 		/* Open the mastercontrol file -> threads need it to determine their workload.
 		   Copy the mastercontrol file to the new trace */
 		OTF_FileManager* mcmanager = OTF_FileManager_open(nfiles);
-		assert(mcmanager);
+		vt_assert(mcmanager);
 		fha.mc = OTF_MasterControl_new(mcmanager);
-		assert(fha.mc);
+		vt_assert(fha.mc);
 		if( 1 == OTF_MasterControl_read( fha.mc, intrace.c_str() ) ) {
 			if( 0 == OTF_MasterControl_write( fha.mc, outtrace.c_str() ) ) {
 				cerr << "Could not write OTF Master Control File \"" << outtrace << ".otf\". Aborting" << endl;
@@ -817,9 +782,9 @@ int main( int argc, char** argv ) {
 		OTF_HandlerArray* defhandlers;
 
 		defmanager= OTF_FileManager_open( nfiles );
-		assert( defmanager );
+		vt_assert( defmanager );
 		defhandlers = OTF_HandlerArray_open();
-		assert( defhandlers );
+		vt_assert( defhandlers );
 
 
 		OTF_HandlerArray_setHandler( defhandlers, (OTF_FunctionPointer*) handleFiltDefinitionComment,
@@ -884,9 +849,9 @@ int main( int argc, char** argv ) {
 		uint32_t streamid = 0;
 
 		defrstream = OTF_RStream_open( intrace.c_str(), streamid, defmanager );
-		assert( defrstream );
+		vt_assert( defrstream );
 		fha.wstream = OTF_WStream_open( outtrace.c_str(), streamid, defmanager );
-		assert( fha.wstream );
+		vt_assert( fha.wstream );
 
 		OTF_WStream_setCompression( fha.wstream, compression );
 
@@ -912,9 +877,9 @@ int main( int argc, char** argv ) {
 			uint32_t streamid = OTF_MasterControl_getEntryByIndex(fha.mc,i)->argument ;
 			
 			defrstream = OTF_RStream_open( intrace.c_str(), streamid, defmanager );
-			assert( defrstream );
+			vt_assert( defrstream );
 			fha.wstream = OTF_WStream_open( outtrace.c_str(), streamid, defmanager );
-			assert( fha.wstream );
+			vt_assert( fha.wstream );
 
 			OTF_WStream_setCompression( fha.wstream, compression );
 
@@ -956,11 +921,11 @@ int main( int argc, char** argv ) {
 		OTF_HandlerArray* phandlers;
 
 		pmanager= OTF_FileManager_open( nfiles );
-		assert( pmanager );
+		vt_assert( pmanager );
 		preader = OTF_Reader_open( intrace.c_str(), pmanager );
-		assert( preader );
+		vt_assert( preader );
 		phandlers = OTF_HandlerArray_open();
-		assert( phandlers );
+		vt_assert( phandlers );
 
 		OTF_Reader_setRecordLimit( preader, 0 );
 
@@ -1018,13 +983,13 @@ int main( int argc, char** argv ) {
 			OTF_HandlerArray* handlers;
 			
 			manager= OTF_FileManager_open( maxfiles );
-			assert( manager );
+			vt_assert( manager );
 			rstream = OTF_RStream_open( intrace.c_str(), streamid, manager );
-			assert( rstream );
+			vt_assert( rstream );
 			handlers = OTF_HandlerArray_open();
-			assert( handlers );
+			vt_assert( handlers );
 			fha.wstream = OTF_WStream_open( outtrace.c_str(), streamid, manager );
-			assert( fha.wstream );
+			vt_assert( fha.wstream );
 
 
 			//cerr << omp_get_thread_num() << " opened " << streamid << " " << fha.wstream << endl;

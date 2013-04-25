@@ -2,7 +2,7 @@
  * VampirTrace
  * http://www.tu-dresden.de/zih/vampirtrace
  *
- * Copyright (c) 2005-2012, ZIH, TU Dresden, Federal Republic of Germany
+ * Copyright (c) 2005-2013, ZIH, TU Dresden, Federal Republic of Germany
  *
  * Copyright (c) 1998-2005, Forschungszentrum Juelich, Juelich Supercomputing
  *                          Centre, Federal Republic of Germany
@@ -2376,7 +2376,7 @@ uint32_t vt_def_region_group(uint32_t tid, const char* gname)
 }
 
 uint32_t vt_def_region(uint32_t tid, const char* rname, uint32_t fid,
-                       uint32_t begln, uint32_t endln, const char* rdesc,
+                       uint32_t begln, uint32_t endln, const char* rgroup,
                        uint8_t rtype)
 {
 #if !defined(VT_DISABLE_RFG)
@@ -2389,19 +2389,19 @@ uint32_t vt_def_region(uint32_t tid, const char* rname, uint32_t fid,
   GET_THREAD_ID(tid);
 
   /* get region's default group name, if not given */
-  if ( rdesc == NULL )
+  if ( rgroup == NULL )
   {
     switch ( rtype )
     {
       case VT_INTERNAL:
-        rdesc = "VT_API";
+        rgroup = "VT_API";
         break;
       case VT_MPI_FUNCTION:
       case VT_MPI_COLL_ALL2ALL:
       case VT_MPI_COLL_ALL2ONE:
       case VT_MPI_COLL_BARRIER:
       case VT_MPI_COLL_ONE2ALL:
-        rdesc = "MPI";
+        rgroup = "MPI";
         break;
       case VT_OMP_FUNCTION:
       case VT_OMP_ATOMIC:
@@ -2415,26 +2415,26 @@ uint32_t vt_def_region(uint32_t tid, const char* rname, uint32_t fid,
       case VT_OMP_SINGLE:
       case VT_OMP_SINGLE_SBLOCK:
       case VT_OMP_WORKSHARE:
-        rdesc = "OMP";
+        rgroup = "OMP";
         break;
       case VT_OMP_PARALLEL_REGION:
-        rdesc = "OMP-PREG";
+        rgroup = "OMP-PREG";
         break;
       case VT_OMP_BARRIER:
       case VT_OMP_IBARRIER:
-        rdesc = "OMP-SYNC";
+        rgroup = "OMP-SYNC";
         break;
       case VT_OMP_LOOP:
-        rdesc = "OMP-LOOP";
+        rgroup = "OMP-LOOP";
         break;
       case VT_PTHRD_FUNCTION:
-        rdesc = "PTHREAD";
+        rgroup = "PTHREAD";
         break;
       case VT_LOOP:
-        rdesc = "LOOP";
+        rgroup = "LOOP";
         break;
       default: /* e.g. VT_FUNCTION */
-        rdesc = VT_DEFAULT_REGION_GROUP;
+        rgroup = VT_DEFAULT_REGION_GROUP;
         break;
     }
   }
@@ -2448,12 +2448,12 @@ uint32_t vt_def_region(uint32_t tid, const char* rname, uint32_t fid,
     rid = curid++;
 
   /* get region info */
-  rinf = RFG_Regions_add(VTTHRD_RFGREGIONS(VTThrdv[0]), rid, rname, rdesc);
+  rinf = RFG_Regions_add(VTTHRD_RFGREGIONS(VTThrdv[0]), rid, rname, rgroup);
   vt_libassert(rinf != NULL);
 
   /* get region's group name, if specified by VT_GROUPS_SPEC */
   if ( rinf->groupName != NULL )
-    rdesc = rinf->groupName;
+    rgroup = rinf->groupName;
 #else /* VT_DISABLE_RFG */
   /* generate region id */
   rid = curid++;
@@ -2463,7 +2463,7 @@ uint32_t vt_def_region(uint32_t tid, const char* rname, uint32_t fid,
   sid = vt_def_scl(tid, fid, begln, endln);
 
   /* define group and store identifier */
-  rdid = vt_def_region_group(tid, rdesc);
+  rdid = vt_def_region_group(tid, rgroup);
 
 #if (defined(VT_MPI) || defined(VT_HYB))
   /* define MPI collective operation, if necessary */
@@ -3490,10 +3490,7 @@ void vt_enter_stat(uint32_t tid, uint64_t* time)
 
   if (VTTHRD_TRACE_STATUS(VTThrdv[tid]) != VT_TRACE_ON) return;
 
-  VTGen_write_ENTER(VTTHRD_GEN(VTThrdv[tid]), time,
-                    vt_trc_regid[VT__TRC_STAT], 0);
-
-  update_counter(tid, time);
+  VTGen_write_ENTER_STAT(VTTHRD_GEN(VTThrdv[tid]), time);
 }
 
 void vt_exit_stat(uint32_t tid, uint64_t* time)
@@ -3502,10 +3499,7 @@ void vt_exit_stat(uint32_t tid, uint64_t* time)
 
   if (VTTHRD_TRACE_STATUS(VTThrdv[tid]) != VT_TRACE_ON) return;
 
-  update_counter(tid, time);
-  if (VTTHRD_TRACE_STATUS(VTThrdv[tid]) != VT_TRACE_ON) return;
-
-  VTGen_write_LEAVE(VTTHRD_GEN(VTThrdv[tid]), time, 0, 0);
+  VTGen_write_LEAVE_STAT(VTTHRD_GEN(VTThrdv[tid]), time);
 }
 
 void vt_enter_flush(uint32_t tid, uint64_t* time)

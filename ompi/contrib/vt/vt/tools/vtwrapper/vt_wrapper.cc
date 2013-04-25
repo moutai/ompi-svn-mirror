@@ -2,7 +2,7 @@
  * VampirTrace
  * http://www.tu-dresden.de/zih/vampirtrace
  *
- * Copyright (c) 2005-2012, ZIH, TU Dresden, Federal Republic of Germany
+ * Copyright (c) 2005-2013, ZIH, TU Dresden, Federal Republic of Germany
  *
  * Copyright (c) 1998-2005, Forschungszentrum Juelich, Juelich Supercomputing
  *                          Centre, Federal Republic of Germany
@@ -23,7 +23,6 @@
 #include <string>
 #include <vector>
 
-#include <assert.h>
 #include <fnmatch.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -629,6 +628,7 @@ readDataFile()
         break;
       }
       case 31: // partype_default
+      default:
       {
         if( value.compare( "seq" ) == 0 )
         {
@@ -654,14 +654,6 @@ readDataFile()
                     << value << "'" << std::endl;
           error = true;
         }
-        break;
-      }
-      default:
-      {
-        std::cerr << ExeName << ": "
-                  << data_file << ":" << line_no << ": "
-                  << "could not be parsed" << std::endl;
-        error = true;
         break;
       }
     }
@@ -1458,10 +1450,12 @@ parseCommandLine( int argc, char** argv )
     else if( arg.compare( 0, 5, "-lmpi" ) == 0 ||
              arg.compare( 0, 7, "-lmtmpi" ) == 0 ||
              arg.compare( 0, 7, "-lhpmpi" ) == 0 ||
+             arg.compare( 0, 7, "-lpcmpi" ) == 0 ||
              arg.compare( 0, 7, "-lscmpi" ) == 0 ||
              arg.find( "libmpi" ) != std::string::npos ||
              arg.find( "libmtmpi" ) != std::string::npos ||
              arg.find( "libhpmpi" ) != std::string::npos ||
+             arg.find( "libpcmpi" ) != std::string::npos ||
              arg.find( "libscmpi" ) != std::string::npos )
     {
       Config.setUsesMpi( true );
@@ -1530,7 +1524,7 @@ doWrap()
       //
       std::string cpp_file = src_file;
       si = cpp_file.rfind( '.' );
-      assert( si != std::string::npos );
+      vt_assert( si != std::string::npos );
       cpp_file.insert( si, ".cpp" );
 
       files_to_remove.push_back( cpp_file );
@@ -1579,7 +1573,7 @@ doWrap()
 
       std::string pomp_file = src_file;
       si = pomp_file.rfind( '.' );
-      assert( si != std::string::npos );
+      vt_assert( si != std::string::npos );
       pomp_file.insert( si, ".pomp" );
 
       // convert Fortran source file suffix to upper case, in order to
@@ -1640,7 +1634,7 @@ doWrap()
       if( si != std::string::npos )
         pdb_file = src_file.substr( si+1 );
       si = pdb_file.rfind( '.' );
-      assert( si != std::string::npos );
+      vt_assert( si != std::string::npos );
       pdb_file.replace( si, 4, ".pdb" );
 
       files_to_remove.push_back( pdb_file );
@@ -1650,7 +1644,7 @@ doWrap()
 
       std::string tau_file = src_file;
       si = tau_file.rfind( '.' );
-      assert( si != std::string::npos );
+      vt_assert( si != std::string::npos );
       tau_file.insert( si, ".tau" );
 
       // convert Fortran source file suffix to upper case, in order to
@@ -1742,7 +1736,7 @@ doWrap()
         obj_file = src_file.substr( si+1 );
 
       si = obj_file.rfind( '.' );
-      assert( si != std::string::npos );
+      vt_assert( si != std::string::npos );
       obj_file = obj_file.substr( 0, si ) + ".o";
 
       obj_files_to_rename[obj_file] = mod_file.obj_file;
@@ -2328,14 +2322,14 @@ ConfigS::setCompilerCmd( const std::string& cmd )
 void
 ConfigS::addCompilerArg( const std::string& arg )
 {
-  assert( arg.length() > 0 );
+  vt_assert( arg.length() > 0 );
   addOrSetStringList( Config.comp_args, arg );
 }
 
 void
 ConfigS::addCompilerLib( const std::string& lib )
 {
-  assert( lib.length() > 0 );
+  vt_assert( lib.length() > 0 );
   addOrSetStringList( Config.comp_libs, lib );
 }
 
@@ -2391,7 +2385,7 @@ ConfigS::addModSrcFile( const std::string& file )
     // create object file name of source file
     //
     si = file_base.rfind( '.' );
-    assert( si != std::string::npos );
+    vt_assert( si != std::string::npos );
     file_obj = file_base.substr( 0, si ) + ".o";
 
     // store source/object file and modification action flags
@@ -2401,7 +2395,7 @@ ConfigS::addModSrcFile( const std::string& file )
     //
 
     si = file.rfind( '.' );
-    assert( si != std::string::npos );
+    vt_assert( si != std::string::npos );
 
     std::string base = file.substr( 0, si );
     std::string suffix = file.substr( si );
@@ -2456,28 +2450,28 @@ ConfigS::setOpariRcFile( const std::string& file )
 void
 ConfigS::addOpariArg( const std::string& arg )
 {
-  assert( arg.length() > 0 );
+  vt_assert( arg.length() > 0 );
   addOrSetStringList( Config.opari_args, arg, arg[0] == '!' );
 }
 
 void
 ConfigS::addTauinstArg( const std::string& arg )
 {
-  assert( arg.length() > 0 );
+  vt_assert( arg.length() > 0 );
   addOrSetStringList( Config.tauinst_args, arg, arg[0] == '!' );
 }
 
 void
 ConfigS::addTauinstParseArg( const std::string& arg )
 {
-  assert( arg.length() > 0 );
+  vt_assert( arg.length() > 0 );
   addOrSetStringList( Config.tauinst_parseargs, arg, arg[0] == '!' );
 }
 
 void
 ConfigS::addPrepFlag( const std::string& flag )
 {
-  assert( flag.length() > 0 );
+  vt_assert( flag.length() > 0 );
   addOrSetStringList( Config.prep_flags, flag, flag[0] == '!' );
 }
 
@@ -2577,7 +2571,7 @@ ConfigS::setInstAvail( const std::string& type )
 bool
 ConfigS::setInstType( const InstTypeT type )
 {
-  assert( inst_avail != 0 );
+  vt_assert( inst_avail != 0 );
 
   // instrumentation available ?
   if( !isInstAvail( type ) )

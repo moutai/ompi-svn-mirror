@@ -1,5 +1,5 @@
 /*
- This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2012.
+ This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2013.
  Authors: Andreas Knuepfer, Robert Dietrich, Matthias Jurenz
  */
 
@@ -71,6 +71,7 @@ public:
     std::vector<CTree<std::string>*> children;
     double timeFilt;
     CTree() {
+        parent = NULL;
         timeFilt = 0;
         rule = 1;
         n = 0;

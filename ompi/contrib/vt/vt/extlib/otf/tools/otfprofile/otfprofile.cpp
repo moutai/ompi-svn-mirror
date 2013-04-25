@@ -1,5 +1,5 @@
 /*
- This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2012.
+ This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2013.
  Authors: Andreas Knuepfer, Robert Dietrich, Matthias Jurenz
  */
 
@@ -342,8 +342,7 @@ static int parse_command_line(int argc, char** argv, AllData& alldata) {
 
             }
 
-            ret = 1;
-            break;
+            return 1;
 
             /* -V */
         } else if (0 == strcmp("-V", argv[i])) {
@@ -355,8 +354,7 @@ static int parse_command_line(int argc, char** argv, AllData& alldata) {
 
             }
 
-            ret = 1;
-            break;
+            return 1;
 
             /* -v */
         } else if (0 == strcmp("-v", argv[i])) {
@@ -631,6 +629,8 @@ static int parse_command_line(int argc, char** argv, AllData& alldata) {
 
                 } while ((tok = strtok( NULL, ",")));
 
+		free( arg );
+
                 if (ERR_ARG_INVALID == parse_error)
                     break;
 
@@ -766,10 +766,6 @@ static int parse_command_line(int argc, char** argv, AllData& alldata) {
                         << "'." << endl;
                 break;
 
-            default:
-
-                break;
-
             }
 
         }
@@ -830,6 +826,8 @@ static bool assign_procs(AllData& alldata) {
             cerr << "ERROR: Unable to open file '"
                     << alldata.params.input_file_prefix << ".otf' for reading."
                     << endl;
+            OTF_MasterControl_close(master);
+            OTF_FileManager_close(manager);
             error = true;
         }
     }
@@ -838,11 +836,12 @@ static bool assign_procs(AllData& alldata) {
     /* broadcast error indicator to workers because Open MPI had all
      ranks except rank 0 waiting endlessly in the MPI_Recv, when the '.otf' file
      was absent. */
-    if ( SyncError( alldata, error, 0 ) ) {
+    SyncError( alldata, error, 0 );
+#endif /* OTFPROFILE_MPI */
+    if (error) {
 
         return false;
     }
-#endif /* OTFPROFILE_MPI */
 
     if (0 == alldata.myRank) {
 
@@ -1442,9 +1441,14 @@ void StartMeasurement(AllData& alldata, uint8_t verbose_level, bool sync,
 #endif /* OTFPROFILE_MPI */
 
     /* search for measurement scope by its name; fail if already exists */
-    map<string, Measurement::Scope>::iterator it =
+    map<string, Measurement::Scope>::const_iterator it =
             alldata.measurement.scope_map.find(scope_name);
-    assert( it == alldata.measurement.scope_map.end() );
+    if (it != alldata.measurement.scope_map.end()) {
+
+        cerr << "WARNING: Could not start runtime measurement of scope '"
+             << scope_name << "'. Scope already exists." << std::endl;
+        return;
+    }
 
     /* insert new measurement scope to map */
     Measurement::Scope& scope = alldata.measurement.scope_map.insert(make_pair(
@@ -1468,7 +1472,13 @@ void StopMeasurement(AllData& alldata, bool sync, const string& scope_name) {
     /* search for measurement scope by its name */
     map<string, Measurement::Scope>::iterator it =
             alldata.measurement.scope_map.find(scope_name);
-    assert( it != alldata.measurement.scope_map.end() );
+    if (it == alldata.measurement.scope_map.end()) {
+
+        cerr << "WARNING: Could not stop runtime measurement of scope '"
+             << scope_name << "'. Scope not found." << std::endl;
+        return;
+
+    }
 
     Measurement::Scope& scope = it->second;
 
@@ -1477,7 +1487,16 @@ void StopMeasurement(AllData& alldata, bool sync, const string& scope_name) {
     if (0 == alldata.myRank && alldata.params.verbose_level
             >= scope.verbose_level) {
 
-        assert( -1.0 != scope.start_time );
+        if (-1.0 == scope.start_time) {
+
+            cerr << "WARNING: Could not stop runtime measurement of scope '"
+                 << scope_name << "'. Measurement not started." << std::endl;
+
+            alldata.measurement.scope_map.erase( it );
+            return;
+
+        }
+
         scope.stop_time = Measurement::gettime();
 
         alldata.measurement.have_data = true;
@@ -1497,7 +1516,13 @@ void PrintMeasurement(AllData& alldata, const string& scope_name) {
         /* search for measurement scope by its name */
         map<string, Measurement::Scope>::const_iterator it =
                 alldata.measurement.scope_map.find(scope_name);
-        assert( it != alldata.measurement.scope_map.end() );
+        if ( it == alldata.measurement.scope_map.end() ) {
+
+            cerr << "WARNING: Could not print runtime measurement of scope '"
+                 << scope_name << "'. Scope not found." << std::endl;
+            return;
+
+        }
 
         const Measurement::Scope& scope = it->second;
 

@@ -1,5 +1,5 @@
 /*
- This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2012.
+ This is part of the OTF library. Copyright by ZIH, TU Dresden 2005-2013.
  Authors: Andreas Knuepfer, Holger Brunst, Ronny Brendel, Thomas Kriebitzsch
  also: patches by Rainer Keller, thanks a lot!
 */
@@ -595,10 +595,6 @@ int OTF_File_close( OTF_File* file ) {
 	int status;
 #endif /* HAVE_ZLIB */
 
-	if ( NULL != file->iofsl ) {
-		return OTF_File_iofsl_close( file );
-	}
-
 	if ( NULL == file ) {
 			
 		OTF_Error( "ERROR in function %s, file: %s, line: %i:\n "
@@ -608,6 +604,9 @@ int OTF_File_close( OTF_File* file ) {
 		return 0;
 	}
 
+	if ( NULL != file->iofsl ) {
+		return OTF_File_iofsl_close( file );
+	}
 
 #ifdef HAVE_ZLIB
 
@@ -632,7 +631,13 @@ int OTF_File_close( OTF_File* file ) {
 			}
 
 			status = deflate( OTF_FILE_Z(file), Z_FULL_FLUSH );
-			assert( status != Z_STREAM_ERROR );
+			if (status == Z_STREAM_ERROR) {
+
+				OTF_Error( "ERROR in function %s, file %s, line %i\n"
+						"deflate() failed.\n",
+						__FUNCTION__, __FILE__, __LINE__ );
+				return 0;
+			}
 
 			towrite = file->zbuffersize - OTF_FILE_Z(file)->avail_out;
 			byteswritten = 0;
@@ -1092,17 +1097,6 @@ OTF_File* OTF_File_open_zlevel( const char* filename, OTF_FileManager* manager,
 	uint32_t len;
 	OTF_File* ret;
 
-	if ( OTF_FileManager_isIofsl( manager ) ) {
-		/* open all files except *.otf and global definitions/markers with iofsl */
-		if ( OTF_File_nameSuffixCmp( filename, ".otf" )
-			&& OTF_File_nameSuffixCmp( filename, ".0.def" )
-			&& OTF_File_nameSuffixCmp( filename, ".0.def.z" )
-			&& OTF_File_nameSuffixCmp( filename, ".0.marker" )
-			&& OTF_File_nameSuffixCmp( filename, ".0.marker.z" ) ) {
-			return OTF_File_iofsl_open_zlevel( filename, manager, mode, zlevel );
-		}
-	}
-
 	/* Check input parameters */
 	if( NULL == filename ) {
 
@@ -1119,6 +1113,17 @@ OTF_File* OTF_File_open_zlevel( const char* filename, OTF_FileManager* manager,
 				__FUNCTION__, __FILE__, __LINE__ );
 
 		return NULL;
+	}
+
+	if ( OTF_FileManager_isIofsl( manager ) ) {
+		/* open all files except *.otf and global definitions/markers with iofsl */
+		if ( OTF_File_nameSuffixCmp( filename, ".otf" )
+			&& OTF_File_nameSuffixCmp( filename, ".0.def" )
+			&& OTF_File_nameSuffixCmp( filename, ".0.def.z" )
+			&& OTF_File_nameSuffixCmp( filename, ".0.marker" )
+			&& OTF_File_nameSuffixCmp( filename, ".0.marker.z" ) ) {
+			return OTF_File_iofsl_open_zlevel( filename, manager, mode, zlevel );
+		}
 	}
 
 	ret= (OTF_File*) malloc( sizeof(OTF_File) );
