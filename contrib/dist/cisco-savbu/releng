@@ -4,10 +4,30 @@ use strict;
 
 use Cwd;
 use Data::Dumper;
+use Getopt::Long;
 
 #--------------------------------------------------------------------------
 
+my $build_arg;
+my $help_arg;
+
+my @argv_save = @ARGV;
 my $debug = 0;
+&Getopt::Long::Configure("bundling");
+my $ok = Getopt::Long::GetOptions("build=s" => \$build_arg,
+                                  "help|h" => \$help_arg);
+
+$help_arg = 1
+    if (!$ok);
+if ($help_arg) {
+    print "$0 --build=BUILD_ID\n";
+    exit($ok);
+}
+
+if (!defined($build_arg)) {
+    print "ERROR: Must supply a --build argument\n";
+    exit(1);
+}
 
 #--------------------------------------------------------------------------
 
@@ -143,7 +163,8 @@ if (exists($ENV{LOADEDMODULES}) &&
     $ENV{LOADEDMODULES} =~ /gcc/) {
     print "=== Unloading a bunch of environment modules and re-running...\n";
     sleep(1);
-    my $ret = system(". /etc/profile.d/modules.sh ; module unload gcc cisco/gcc cisco/intel-compilers cisco/pgi-compilers cisco/clang-compilers; $0");
+    my $ret = system(". /etc/profile.d/modules.sh ; module unload gcc cisco/gcc cisco/intel-compilers cisco/pgi-compilers cisco/clang-compilers; $0 " . 
+                     join(' ', @argv_save));
     exit($ret);
 }
 
@@ -160,9 +181,7 @@ close(V);
 # We need to set want_svn to 0
 $version =~ s/^want_svn=\d+$/want_svn=0/m;
 # Set the build number
-# JMS write me
-my $build_id = 1;
-$version =~ s/^greek=.*$/greek=cisco$build_id/m;
+$version =~ s/^greek=.*$/greek=cisco$build_arg/m;
 open(V, ">VERSION");
 print V $version;
 close(V);
