@@ -111,6 +111,8 @@ static int btl_openib_component_progress(void);
  */
 static mca_btl_openib_device_t *receive_queues_device = NULL;
 static bool malloc_hook_set = false;
+static int num_devices_intentionally_ignored = 0;
+
 mca_btl_openib_component_t mca_btl_openib_component = {
     {
         /* First, the mca_base_component_t struct containing meta information
@@ -1681,12 +1683,26 @@ static int init_one_device(opal_list_t *btl_list, struct ibv_device* ib_dev)
                     ibv_get_device_name(device->ib_dev), strerror(errno)));
         goto error;
     }
+
+    /* Due to delays in getting changes to libibverbs upstream, don't
+       use this module with Cisco VICs (i.e., vendor_id == 0x1137). It
+       would be better to switch on the node_type or transport_type,
+       but those aren't upstream in libibverbs yet. */
+    if (device->ib_dev_attr.vendor_id == 0x1137) {
+        BTL_VERBOSE(("openib: skipping non-IB/IWARP Cisco VIC %s",
+                     ibv_get_device_name(device->ib_dev)));
+        ++num_devices_intentionally_ignored;
+        ret = OMPI_SUCCESS;
+        goto error;
+    }
+
     /* If mca_btl_if_include/exclude were specified, get usable ports */
     allowed_ports = (int*)malloc(device->ib_dev_attr.phys_port_cnt * sizeof(int));
     port_cnt = get_port_list(device, allowed_ports);
     if (0 == port_cnt) {
         free(allowed_ports);
         ret = OMPI_SUCCESS;
+        ++num_devices_intentionally_ignored;
         goto error;
     }
 
@@ -2801,8 +2817,13 @@ btl_openib_component_init(int *num_btl_modules,
     }
 
     if(0 == mca_btl_openib_component.ib_num_btls) {
-        orte_show_help("help-mpi-btl-openib.txt",
-                "no active ports found", true, orte_process_info.nodename);
+        /* If there were unusable devices that weren't specifically
+           ignored, warn about it */
+        if (num_devices_intentionally_ignored < num_devs) {
+            orte_show_help("help-mpi-btl-openib.txt",
+                           "no active ports found", true, 
+                           orte_process_info.nodename);
+        }
         goto no_btls;
     }
 
