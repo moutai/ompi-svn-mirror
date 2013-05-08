@@ -183,7 +183,7 @@ static int usnic_del_procs(struct mca_btl_base_module_t* btl,
 
 /**
  * Allocate PML control messages or eager frags if BTL does not have
- * IN_PLACE flag.  To be clear: max it will ever alloc is eager_limit.
+ * INPLACE flag.  To be clear: max it will ever alloc is eager_limit.
  * THEREFORE: eager_limit is the max that ALLOC must always be able to
  * alloc.
  *  --> Contraction in the btl.h documentation.
@@ -234,7 +234,7 @@ static int usnic_free(struct mca_btl_base_module_t* btl,
  * Notes from george:
  *
  * - BTL ALLOC: allocating PML control messages or eager frags if BTL
-     does not have IN_PLACE flag.  To be clear: max it will ever alloc
+     does not have INPLACE flag.  To be clear: max it will ever alloc
      is eager_limit.  THEREFORE: eager_limit is the max that ALLOC
      must always be able to alloc.
      --> Contraction in the btl.h documentation.
