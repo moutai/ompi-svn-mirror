@@ -660,6 +660,18 @@ static int init_qp(ompi_btl_usnic_module_t* module)
         return OMPI_ERR_TEMP_OUT_OF_RESOURCE;
     }
 
+    /* Find the max inline size */
+    memset(&qp_attr, 0, sizeof(qp_attr));
+    memset(&qp_init_attr, 0, sizeof(qp_init_attr));
+    if (ibv_query_qp(module->qp, &qp_attr, IBV_QP_CAP,
+                     &qp_init_attr) != 0) {
+        BTL_ERROR(("error querying QP: %s", strerror(errno)));
+        ibv_destroy_qp(module->qp);
+        module->qp = NULL;
+        return OMPI_ERR_TEMP_OUT_OF_RESOURCE;
+    }
+    module->qp_max_inline = qp_attr.cap.max_inline_data;
+
     return OMPI_SUCCESS;
 }
 

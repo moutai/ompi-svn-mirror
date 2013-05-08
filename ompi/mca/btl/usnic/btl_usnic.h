@@ -201,6 +201,7 @@ typedef struct ompi_btl_usnic_module_t {
 
     /** queue pair */
     struct ibv_qp* qp;
+    uint32_t qp_max_inline;
 
     /* Debugging statistics */
     bool final_stats;
