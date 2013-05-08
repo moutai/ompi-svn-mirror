@@ -78,7 +78,10 @@ int ompi_btl_usnic_find_ip(ompi_btl_usnic_module_t *module, uint8_t mac[6])
             /* Since verbs doesn't offer a way to get standard
                Ethernet MTUs (as of libibverbs 1.1.5, the MTUs are
                enums, and don't inlcude values for 1500 or 9000), look
-               up the MTU in the corresponding enic interface. */
+               up the MTU in the corresponding enic interface.
+               Subtract 40 off the MTU value so that we provide enough
+               space for the GRH on the remote side. */
+            module->if_mtu -= 40;
             module->addr.mtu = module->if_mtu;
 
             inet_ntop(AF_INET, &(module->if_ipv4_addr),
