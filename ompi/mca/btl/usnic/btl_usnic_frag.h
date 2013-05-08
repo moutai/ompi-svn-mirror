@@ -165,8 +165,8 @@ typedef enum {
 typedef struct ompi_btl_usnic_frag_t {
     mca_btl_base_descriptor_t base;
     mca_btl_base_segment_t segment;
-    
-    struct mca_btl_base_endpoint_t* endpoint;
+
+    struct mca_btl_base_endpoint_t *endpoint;
 
     ompi_btl_usnic_frag_type_t type;
     
@@ -215,7 +215,7 @@ OBJ_CLASS_DECLARATION(ompi_btl_usnic_ack_frag_t);
 #endif
 
 /*
- * Alloc a send frag
+ * Alloc a send frag from the send pool
  */
 ompi_btl_usnic_frag_t *
 ompi_btl_usnic_frag_send_alloc(struct ompi_btl_usnic_module_t *module);
@@ -223,21 +223,22 @@ ompi_btl_usnic_frag_send_alloc(struct ompi_btl_usnic_module_t *module);
 /*
  * Is a send frag ok to return?
  */
-bool ompi_btl_usnic_frag_send_ok_to_return(struct ompi_btl_usnic_module_t *module,
-                                             ompi_btl_usnic_frag_t *frag);
+bool 
+ompi_btl_usnic_frag_send_ok_to_return(struct ompi_btl_usnic_module_t *module,
+                                      ompi_btl_usnic_frag_t *frag);
 
 /* 
  * Return a send frag
  */
 void ompi_btl_usnic_frag_send_return(struct ompi_btl_usnic_module_t *module,
-                                       ompi_btl_usnic_frag_t *frag);
-
+                                     ompi_btl_usnic_frag_t *frag);
 
 /* 
  * Return a send frag conditionally
  */
-void ompi_btl_usnic_frag_send_return_cond(struct ompi_btl_usnic_module_t *module,
-                                            ompi_btl_usnic_frag_t *frag);
+void 
+ompi_btl_usnic_frag_send_return_cond(struct ompi_btl_usnic_module_t *module,
+                                     ompi_btl_usnic_frag_t *frag);
 
 
 #if RELIABILITY

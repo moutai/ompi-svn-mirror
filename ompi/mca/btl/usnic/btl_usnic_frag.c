@@ -48,18 +48,20 @@ static void ompi_btl_usnic_frag_reset_states(ompi_btl_usnic_frag_t *frag)
 }
 
 
-static void frag_common_constructor(ompi_btl_usnic_frag_t* frag)
+static void frag_common_constructor(ompi_btl_usnic_frag_t *frag)
 {
+#if 0
+    /* JMS Not needed for USNIC UD */
     frag->ud_reg = (ompi_btl_usnic_reg_t*)frag->base.super.registration;
     frag->sg_entry.lkey = frag->ud_reg->mr->lkey;
+#endif
     frag->base.des_flags = 0;
     frag->base.order = MCA_BTL_NO_ORDER;
-
     ompi_btl_usnic_frag_reset_states(frag);
 }
 
 
-static void send_frag_constructor(ompi_btl_usnic_frag_t* frag)
+static void send_frag_constructor(ompi_btl_usnic_frag_t *frag)
 {
     frag_common_constructor(frag);
 
@@ -96,7 +98,7 @@ static void send_frag_constructor(ompi_btl_usnic_frag_t* frag)
 
 
 #if RELIABILITY
-static void ack_frag_constructor(ompi_btl_usnic_frag_t* frag)
+static void ack_frag_constructor(ompi_btl_usnic_frag_t *frag)
 {
     send_frag_constructor(frag);
 
@@ -104,7 +106,7 @@ static void ack_frag_constructor(ompi_btl_usnic_frag_t* frag)
 }
 #endif
 
-static void recv_frag_constructor(ompi_btl_usnic_frag_t* frag)
+static void recv_frag_constructor(ompi_btl_usnic_frag_t *frag)
 {
     frag_common_constructor(frag);
 
@@ -183,7 +185,6 @@ ompi_btl_usnic_frag_send_alloc(ompi_btl_usnic_module_t *module)
         assert(OMPI_BTL_USNIC_FRAG_SEND == frag->type);
         assert(!FRAG_STATE_GET(frag, FRAG_ALLOCED));
 
-        ompi_btl_usnic_frag_reset_states(frag);
         FRAG_STATE_SET(frag, FRAG_ALLOCED);
         return frag;
     }
@@ -233,7 +234,7 @@ bool ompi_btl_usnic_frag_send_ok_to_return(ompi_btl_usnic_module_t *module,
 
 /* JMS This function should be inlined */
 void ompi_btl_usnic_frag_send_return(ompi_btl_usnic_module_t *module,
-                                       ompi_btl_usnic_frag_t *frag)
+                                     ompi_btl_usnic_frag_t *frag)
 {
     assert(FRAG_STATE_GET(frag, FRAG_ALLOCED));
     assert(OMPI_BTL_USNIC_FRAG_SEND == frag->type);
