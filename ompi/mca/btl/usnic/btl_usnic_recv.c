@@ -344,13 +344,24 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
 
             /* Conditinally return the send frag to the freelist */
             FRAG_STATE_SET(pfrag->frag, FRAG_SEND_ACKED);
+
+            /* Check the sending frag out from the hotel.  NOTE: The
+               frag might not actually be in a hotel room if it had
+               already been evicted, but there were no send WQEs, and
+               so it's off waiting in the pending send queue.  So if
+               it's not in the hotel, don't check it out! */
+            if (FRAG_STATE_ISSET(pfrag->frag, FRAG_IN_HOTEL)) {
+                opal_hotel_checkout(&endpoint->endpoint_hotel, 
+                                    pfrag->hotel_room);
+                FRAG_STATE_CLR(pfrag->frag, FRAG_IN_HOTEL);
+            }
+
+            /* From the ACK perspective, we're done with this
+               fragment.  (Conditionally) Return it to the
+               freelist. */
             ompi_btl_usnic_frag_send_return_cond(module, pfrag->frag);
 
-            /* Check the sending frag out from the hotel */
-            opal_hotel_checkout(&endpoint->endpoint_hotel, pfrag->hotel_room);
-
             /* Reset the entry in the sent_frags array */
-            FRAG_STATE_CLR(pfrag->frag, FRAG_IN_HOTEL);
             pfrag->frag = NULL;
             pfrag->occupied = false;
             pfrag->hotel_room = -1;
