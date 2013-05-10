@@ -227,9 +227,6 @@ void ompi_btl_usnic_ack_timeout_part2(ompi_btl_usnic_module_t *module,
     }
     FRAG_STATE_SET(frag, FRAG_IN_HOTEL);
 
-    /* Stats */
-    ++module->num_resends;
-
     swi = WINDOW_SIZE_MOD(frag->btl_header->seq);
     endpoint->endpoint_sent_frags[swi].hotel_room = room;
 
