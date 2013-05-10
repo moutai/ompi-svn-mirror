@@ -150,7 +150,8 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
                       |     somewhere in this range     |
                       +^--------------------------------+
                        |
-                       +-- next_contig_seq_to_recv: the window left edge
+                       +-- next_contig_seq_to_recv: the window left edge;
+                           will always be less than highest_seq_rcvd
 
            The good condition is 
 
@@ -214,6 +215,13 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
                         (void*) endpoint, frag->btl_header->seq, src_mac, dest_mac,
                         (void*) frag);
 #endif
+            /* highest_seq_rcvd is for debug stats only; it's not used
+               in any window calculations */
+            assert(seq <= endpoint->endpoint_highest_seq_rcvd);
+            /* next_contig_seq_to_recv-1 is the ack number we'll
+               send */
+            assert (seq > endpoint->endpoint_next_contig_seq_to_recv - 1);
+
             /* Stats */
             ++module->num_dup_recvs;
             goto repost;
@@ -318,12 +326,13 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
 
 #if MSGDEBUG
             /* JMS DEBUG */
-	    opal_output(0, "  Checking ACK/sent_frags window %p, index %lu, seq %lu, prag=%p, occupied=%d",
+	    opal_output(0, "  Checking ACK/sent_frags window %p, index %lu, seq %lu, prag=%p, occupied=%d, frag state flags=0x%x",
 			(void*) endpoint->endpoint_sent_frags,
 			WINDOW_SIZE_MOD(is),
 			is,
 			(void*)pfrag,
-			pfrag->occupied);
+			pfrag->occupied,
+                        pfrag->frag->state_flags);
 #endif
             assert(pfrag->occupied);
             assert(FRAG_STATE_GET(pfrag->frag, FRAG_ALLOCED));
