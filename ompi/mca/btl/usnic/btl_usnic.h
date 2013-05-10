@@ -215,7 +215,8 @@ typedef struct ompi_btl_usnic_module_t {
     uint64_t num_total_recvs;
     uint64_t num_unk_recvs;
     uint64_t num_dup_recvs;
-    uint64_t num_oow_recvs;
+    uint64_t num_oow_low_recvs;
+    uint64_t num_oow_high_recvs;
     uint64_t num_frag_recvs;
     uint64_t num_ack_recvs;
     uint64_t num_recv_reposts;

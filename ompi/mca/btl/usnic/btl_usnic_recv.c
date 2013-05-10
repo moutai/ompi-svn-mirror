@@ -179,7 +179,11 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
 #endif
 
             /* Stats */
-            ++module->num_oow_recvs;
+            if (seq < endpoint->endpoint_next_contig_seq_to_recv) {
+                ++module->num_oow_low_recvs;
+            } else {
+                ++module->num_oow_high_recvs;
+            }
             goto repost;
         }
 

@@ -321,7 +321,8 @@ static inline void usnic_stats_reset(ompi_btl_usnic_module_t *module)
         module->num_total_recvs =
         module->num_unk_recvs =
         module->num_dup_recvs =
-        module->num_oow_recvs =
+        module->num_oow_low_recvs =
+        module->num_oow_high_recvs =
         module->num_frag_recvs =
         module->num_ack_sends =
         module->num_recv_reposts =
@@ -333,11 +334,10 @@ static inline void usnic_stats_reset(ompi_btl_usnic_module_t *module)
         module->max_sent_window_size =
         module->max_rcvd_window_size = 
 
-#if 0        
         module->pml_module_sends = 
         module->pml_module_sends_deferred =
         module->pml_send_callbacks = 
-#endif
+
         0;
 }
 
@@ -358,7 +358,7 @@ static void usnic_stats_callback(int fd, short flags, void *arg)
     }
 
     /* The usuals */
-    snprintf(str, sizeof(str), "%s:MCW:%2u, SndTot/F/RS/A:%8lu/%4lu/%8lu/%8lu, RcvTot/Chk/F/OOW/Dup/A/Unk:%8lu/%c%c/%8lu/%4lu/%4lu/%8lu/%1lu ",
+    snprintf(str, sizeof(str), "%s:MCW:%2u, SndTot/F/RS/A:%8lu/%4lu/%8lu/%8lu, RcvTot/Chk/F/OOWL/OOWH/Dup/A:%8lu/%c%c/%8lu/%4lu+%2lu/%4lu/%4lu ",
              tmp,
              ompi_proc_local()->proc_name.vpid,
 
@@ -371,15 +371,16 @@ static void usnic_stats_callback(int fd, short flags, void *arg)
              (module->num_total_recvs - module->num_recv_reposts) == 0 ? 'g' : 'B',
              (module->num_total_recvs -
               module->num_frag_recvs -
-              module->num_oow_recvs -
+              module->num_oow_low_recvs -
+              module->num_oow_high_recvs -
               module->num_dup_recvs -
               module->num_ack_recvs -
               module->num_unk_recvs) == 0 ? 'g' : 'B',
              module->num_frag_recvs,
-             module->num_oow_recvs,
+             module->num_oow_low_recvs,
+             module->num_oow_high_recvs,
              module->num_dup_recvs,
-             module->num_ack_recvs,
-             module->num_unk_recvs);
+             module->num_ack_recvs);
 
 #if RELIABILITY
     /* If our PML calls were 0, then show send and receive window
@@ -387,34 +388,36 @@ static void usnic_stats_callback(int fd, short flags, void *arg)
     if (1 || module->pml_module_sends + module->pml_module_sends_deferred +
         module->pml_send_callbacks == 0) {
         int i;
-        uint64_t size;
-        uint64_t send_min = 99999999999, send_max = 0;
-        uint64_t recv_min = 99999999999, recv_max = 0;
+        int64_t send_unacked, su_min = WINDOW_SIZE * 2, su_max = 0;
+        int64_t recv_depth, rd_min = WINDOW_SIZE * 2, rd_max = 0;
         ompi_btl_usnic_endpoint_t *endpoint;
 
+        rd_min = su_min = WINDOW_SIZE * 2;
+        rd_max = su_max = 0;
         for (i = 0; i < module->num_endpoints; ++i) {
             endpoint = module->all_endpoints[i];
 
-            /* Sender window */
-            size = WINDOW_SIZE -
-                (endpoint->endpoint_next_seq_to_send - 
-                 endpoint->endpoint_ack_seq_rcvd - 1);
-            if (size < send_min) send_min = size;
-            if (size > send_max) send_max = size;
+            /* Number of un-acked sends (i.e., sends for which we're
+               still waiting for ACK) */
+            send_unacked = 
+                endpoint->endpoint_next_seq_to_send - 
+                endpoint->endpoint_ack_seq_rcvd - 1;
+            if (send_unacked > su_max) su_max = send_unacked;
+            if (send_unacked < su_min) su_min = send_unacked;
 
-            /* Receiver window */
-            size = WINDOW_SIZE -
-                (endpoint->endpoint_highest_seq_rcvd - 
-                 endpoint->endpoint_next_contig_seq_to_recv + 1);
-            if (size < recv_min) recv_min = size;
-            if (size > recv_max) recv_max = size;
+            /* Receive window depth (i.e., difference between highest
+               seq received and the next message we haven't ACKed
+               yet) */
+            recv_depth = 
+                endpoint->endpoint_highest_seq_rcvd -
+                endpoint->endpoint_next_contig_seq_to_recv;
+            if (recv_depth > rd_max) rd_max = recv_depth;
+            if (recv_depth < rd_min) rd_min = recv_depth;
         }
-        snprintf(tmp, sizeof(tmp), "PML D:%1lu, Win Sn/Sx/Rn/R:%4lu/%4lu/%4lu/%4lu",
+        snprintf(tmp, sizeof(tmp), "PML D:%1ld, Win!AckS/Rdpth:%4ld/%4ld %4ld/%4ld",
                  module->pml_module_sends - (module->pml_module_sends_deferred + module->pml_send_callbacks),
-                 send_min,
-                 send_max,
-                 recv_min,
-                 recv_max);
+                 su_min, su_max,
+                 rd_min, rd_max);
     } else {
 #endif
         snprintf(tmp, sizeof(tmp), "PML S/SD/CB/Diff:%4lu/%4lu/%4lu=%4ld",
