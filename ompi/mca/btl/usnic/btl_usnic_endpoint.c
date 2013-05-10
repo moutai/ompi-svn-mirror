@@ -111,7 +111,7 @@ int ompi_btl_usnic_endpoint_post_send(ompi_btl_usnic_module_t* module,
     /* If we have room in the sender's window, we also have room in
        endpoint hotel */
     ret = opal_hotel_checkin(&endpoint->endpoint_hotel, frag, &room);
-    if (OPAL_UNLIKELY(OPAL_ERR_TEMP_OUT_OF_RESOURCE == ret)) {
+    if (OPAL_UNLIKELY(OPAL_SUCCESS != ret)) {
         ++module->sd_wqe;
         /* Hotel is full; this shouldn't happen! */
         BTL_ERROR(("=== Hotel is full on endpoint send, module %p, endpoint %p, frag %p", 

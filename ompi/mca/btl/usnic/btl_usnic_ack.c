@@ -217,7 +217,7 @@ void ompi_btl_usnic_ack_timeout_part2(ompi_btl_usnic_module_t *module,
     /* We need to check in to the hotel again, and therefore get a new
        room number. */
     ret = opal_hotel_checkin(&endpoint->endpoint_hotel, frag, &room);
-    if (OPAL_UNLIKELY(OPAL_ERR_TEMP_OUT_OF_RESOURCE == ret)) {
+    if (OPAL_UNLIKELY(OPAL_SUCCESS != ret)) {
         /* Hotel is full; this shouldn't happen! */
         /* JMS Need to separate this out into a part2/part3 function */
         BTL_ERROR(("ACK timeout: hotel is full!, module %p", (void*) module));
