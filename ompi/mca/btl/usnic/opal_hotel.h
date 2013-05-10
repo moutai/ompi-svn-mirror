@@ -185,6 +185,7 @@ static inline int opal_hotel_checkin(opal_hotel_t *hotel,
     /* Put this occupant into the first empty room that we have */
     *room_num = hotel->unoccupied_rooms[hotel->last_unoccupied_room--];
     room = &(hotel->rooms[*room_num]);
+    assert(room->occupant == NULL);
     room->occupant = occupant;
 
     /* Assign the event and make it pending */
