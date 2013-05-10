@@ -160,7 +160,7 @@ int ompi_btl_usnic_component_register(void)
     opal_argv_free(parts);
 
     CHECK(reg_int("stats",
-                  "Whether you want stats emitted periodically not (default: 0)",
+                  "Whether you want stats emitted periodically or not (default: 0)",
                   0, &val, 0));
     mca_btl_usnic_component.stats_enabled = (bool) val;
 
