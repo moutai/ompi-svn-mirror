@@ -30,6 +30,8 @@
 #include "opal/datatype/opal_convertor.h"
 #include "opal/include/opal_stdint.h"
 
+#include "orte/util/show_help.h"
+
 #include "ompi/mca/btl/btl.h"
 #include "ompi/mca/btl/base/btl_base_error.h"
 #include "ompi/mca/mpool/base/base.h"
@@ -135,7 +137,13 @@ static int usnic_add_procs(struct mca_btl_base_module_t* base_module,
         if (NULL == usnic_endpoint->endpoint_remote_ah) {
             OBJ_RELEASE(usnic_endpoint);
             OBJ_RELEASE(usnic_proc);
-            BTL_ERROR(("error creating address handle\n"));
+            orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+                           true, 
+                           orte_process_info.nodename,
+                           ibv_get_device_name(module->device), 
+                           module->port_num,
+                           "ibv_create_ah()", __FILE__, __LINE__,
+                           "Failed to create an address handle");
             continue;
         }
 
@@ -643,7 +651,13 @@ static int init_qp(ompi_btl_usnic_module_t* module)
     
     module->qp = ibv_create_qp(module->pd, &qp_init_attr);
     if (NULL == module->qp) {
-        BTL_ERROR(("error creating QP: %s\n", strerror(errno)));
+        orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+                       true, 
+                       orte_process_info.nodename,
+                       ibv_get_device_name(module->device), 
+                       module->port_num,
+                       "ibv_create_qp()", __FILE__, __LINE__,
+                       "Failed to create a USNIC QP; check CIMC/UCSM to ensure enough USNIC QPs are provisioned");
         return OMPI_ERR_OUT_OF_RESOURCE;
     }
 
@@ -657,7 +671,13 @@ static int init_qp(ompi_btl_usnic_module_t* module)
 
     if (ibv_modify_qp(module->qp, &qp_attr,
                       IBV_QP_STATE | IBV_QP_PORT)) {
-        BTL_ERROR(("error modifying QP to INIT: %s", strerror(errno)));
+        orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+                       true, 
+                       orte_process_info.nodename,
+                       ibv_get_device_name(module->device),
+                       module->port_num,
+                       "ibv_modify_qp()", __FILE__, __LINE__,
+                       "Failed to modify an existing QP");
         ibv_destroy_qp(module->qp);
         module->qp = NULL;
         return OMPI_ERR_TEMP_OUT_OF_RESOURCE;
@@ -668,7 +688,13 @@ static int init_qp(ompi_btl_usnic_module_t* module)
     memset(&qp_init_attr, 0, sizeof(qp_init_attr));
     if (ibv_query_qp(module->qp, &qp_attr, IBV_QP_CAP,
                      &qp_init_attr) != 0) {
-        BTL_ERROR(("error querying QP: %s", strerror(errno)));
+        orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+                       true, 
+                       orte_process_info.nodename,
+                       ibv_get_device_name(module->device), 
+                       module->port_num,
+                       "ibv_query_qp()", __FILE__, __LINE__,
+                       "Failed to query an existing QP");
         ibv_destroy_qp(module->qp);
         module->qp = NULL;
         return OMPI_ERR_TEMP_OUT_OF_RESOURCE;
@@ -733,8 +759,13 @@ int ompi_btl_usnic_module_init(ompi_btl_usnic_module_t *module)
     /* Get a PD */
     module->pd = ibv_alloc_pd(ctx);
     if (NULL == module->pd) {
-        BTL_ERROR(("error allocating PD for %s: %s\n",
-                   ibv_get_device_name(module->device), strerror(errno)));
+        orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+                       true, 
+                       orte_process_info.nodename,
+                       ibv_get_device_name(module->device), 
+                       module->port_num,
+                       "ibv_alloc_pd()", __FILE__, __LINE__,
+                       "Failed to create a PD; is the usnic_verbs Linux kernel module loaded?");
         return OMPI_ERROR;
     }
 
@@ -747,16 +778,26 @@ int ompi_btl_usnic_module_init(ompi_btl_usnic_module_t *module)
         mca_mpool_base_module_create(mca_btl_usnic_component.usnic_mpool_name,
                                      &module->super, &mpool_resources);
     if (NULL == module->super.btl_mpool) {
-        BTL_ERROR(("error creating IB mpool for %s: %s\n",
-                   ibv_get_device_name(module->device), strerror(errno)));
+        orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+                       true, 
+                       orte_process_info.nodename,
+                       ibv_get_device_name(module->device),
+                       module->port_num,
+                       "create mpool", __FILE__, __LINE__,
+                       "Failed to allocate registered memory");
         goto dealloc_pd;
     }
 
     /* Create the completion queue */
     module->cq = ibv_create_cq(ctx, module->cq_num, NULL, NULL, 0);
     if (NULL == module->cq) {
-        BTL_ERROR(("error creating CQ for %s: %s\n",
-                   ibv_get_device_name(module->device), strerror(errno)));
+        orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+                       true, 
+                       orte_process_info.nodename,
+                       ibv_get_device_name(module->device),
+                       module->port_num,
+                       "ibv_create_cq()", __FILE__, __LINE__,
+                       "Failed to create a CQ");
         goto mpool_destroy;
     }
 
@@ -800,7 +841,13 @@ int ompi_btl_usnic_module_init(ompi_btl_usnic_module_t *module)
         FRAG_STATE_CLR(frag, FRAG_RECV_WR_POSTED);
 
         if (NULL == frag) {
-            BTL_ERROR(("error getting receive buffer from free list\n"));
+            orte_show_help("help-mpi-btl-usnic.txt", "internal error",
+                           true, 
+                           orte_process_info.nodename,
+                           ibv_get_device_name(module->device),
+                           module->port_num,
+                           "get freelist buffer()", __FILE__, __LINE__,
+                           "Failed to get receive buffer from freelist");
             goto obj_destruct;
         }
 
@@ -811,7 +858,13 @@ int ompi_btl_usnic_module_init(ompi_btl_usnic_module_t *module)
         frag->wr_desc.rd_desc.next = NULL;
 
         if (ibv_post_recv(module->qp, &frag->wr_desc.rd_desc, &bad_wr)) {
-            BTL_ERROR(("error posting recv, errno %s\n", strerror(errno)));
+            orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+                           true, 
+                           orte_process_info.nodename,
+                           ibv_get_device_name(module->device),
+                           module->port_num,
+                           "ibv_post_recv", __FILE__, __LINE__,
+                           "Failed to post receive buffer");
             goto obj_destruct;
         }
         FRAG_STATE_SET(frag, FRAG_RECV_WR_POSTED);

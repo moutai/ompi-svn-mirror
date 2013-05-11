@@ -8,50 +8,54 @@
 #
 # $HEADER$
 #
-# This is the US/English help file for the Open MPI udverbs BTL.
+# This is the US/English help file for the Open MPI usnic BTL.
 #
-[ibv_query_gid failed]
-Open MPI failed to query the GID of a port on an OpenFabrics device.
-This is unusual and shouldn't happen.  It suggests that there may be
-something wrong with the OpenFabrics configuration on this node.
+[ibv_FOO failed]
+Open MPI failed a basic verbs operation on a Cisco USNIC device.  This
+is highly unusual and shouldn't happen.  It suggests that there may be
+something wrong with the USNIC or OpenFabrics configuration on this
+server.
 
-Open MPI will skip this device/port in the udverbs BTL, which may result
+Open MPI will skip this device/port in the usnic BTL, which may result
 in either lower performance or your job aborting.
 
-  Local host:      %s
+  Server:          %s
   Device:          %s
   Port:            %d
-  Failed function: ibv_query_gid()
+  Failed function: %s (%s:%d)
+  Description:     %s
 #
-[ibv_query_device failed]
-Open MPI failed to query an OpenFabrics device.  This is unusual and
-shouldn't happen.  It suggests that there may be something wrong with
-the OpenFabrics configuration on this node.
+[internal error]
+An internal error has occurred in the Open MPI USNIC BTL.  This is
+highly unusual and shouldn't happen.  It suggests that there may be
+something wrong with the USNIC or OpenFabrics configuration on this
+server.
 
-Open MPI will skip this device/port in the udverbs BTL, which may result
+Open MPI will skip this device/port in the usnic BTL, which may result
 in either lower performance or your job aborting.
 
-  Local host:      %s
+  Server:          %s
   Device:          %s
   Port:            %d
-  Failed function: ibv_query_device()
+  Failure:         %s (%s:%d)
+  Description:     %s
 #
 [verbs_port_bw failed]
-Open MPI failed to query the supported bandwidth of a port on an
-OpenFabrics device.  This is unusual and shouldn't happen.  It
-suggests that there may be something wrong with the OpenFabrics
-configuration on this node.
+Open MPI failed to query the supported bandwidth of a port on a Cisco
+USNIC device.  This is unusual and shouldn't happen.  It suggests that
+there may be something wrong with the USNIC or OpenFabrics
+configuration on this server.
 
-Open MPI will skip this device/port in the udverbs BTL, which may result
+Open MPI will skip this device/port in the usnic BTL, which may result
 in either lower performance or your job aborting.
 
-  Local host: %s
+  Server:     %s
   Device:     %s
   Port:       %d
 #
 [eager_limit too high]
-The eager_limit in the udverbs BTL is too high for a device that Open
-MPI tried to use.  The udverbs BTL eager_limit value is the largest
+The eager_limit in the usnic BTL is too high for a device that Open
+MPI tried to use.  The usnic BTL eager_limit value is the largest
 message payload that Open MPI will send in a single datagram.  
 
 You are seeing this message because the eager_limit was set to a value
@@ -60,11 +64,12 @@ The max payload size is smaller than the size of individual datagrams
 because each datagram also contains MPI control metadata, meaning that
 the some bytes in the datagram must be reserved for overhead.
 
-Open MPI will skip this device/port in the udverbs BTL, which may result
+Open MPI will skip this device/port in the usnic BTL, which may result
 in either lower performance or your job aborting.
 
-  Local host:            %s
+  Server:                %s
   Device:                %s
   Port:                  %d
   Max payload allowed:   %d
   Specified eager_limit: %d
+#

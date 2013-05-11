@@ -44,10 +44,10 @@
 #include "opal/util/argv.h"
 #include "opal/mca/base/mca_base_param.h"
 #include "opal/mca/memchecker/base/base.h"
-#include "opal/util/show_help.h"
 
 #include "orte/mca/errmgr/errmgr.h"
 #include "orte/runtime/orte_globals.h"
+#include "orte/util/show_help.h"
 
 #include "ompi/constants.h"
 #include "ompi/mca/btl/btl.h"
@@ -329,11 +329,13 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
                                port->port_num,
                                mca_btl_usnic_component.gid_index, &gid)) {
             opal_memchecker_base_mem_defined(&gid, sizeof(gid));
-            opal_show_help("help-mpi-btl-usnic.txt", "ibv_query_gid failed",
+            orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
                            true, 
                            orte_process_info.nodename,
-                           ibv_get_device_name(port->device->device), 
-                           port->port_num);
+                           ibv_get_device_name(module->device),
+                           module->port_num,
+                           "ibv_query_gid", __FILE__, __LINE__,
+                           "Failed to query USNIC GID");
             --mca_btl_usnic_component.num_modules;
             --i;
             continue;
@@ -369,7 +371,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
                 /* If we don't get OMPI_SUCCESS, then we weren't able
                    to figure out what the bandwidth was of this port.
                    That's a bad sign.  Let's ignore this port. */
-                opal_show_help("help-mpi-btl-usnic.txt", "verbs_port_bw failed",
+                orte_show_help("help-mpi-btl-usnic.txt", "verbs_port_bw failed",
                                true, 
                                orte_process_info.nodename,
                                ibv_get_device_name(port->device->device), 
@@ -386,11 +388,13 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
 
         /* Query this device */
         if (0 != ibv_query_device(module->device_context, &device_attr)) {
-            opal_show_help("help-mpi-btl-usnic.txt", "ibv_query_device failed",
+            orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
                            true, 
                            orte_process_info.nodename,
-                           ibv_get_device_name(port->device->device), 
-                           port->port_num);
+                           ibv_get_device_name(module->device),
+                           module->port_num,
+                           "ibv_query_device", __FILE__, __LINE__,
+                           "Failed to query USNIC device");
             --mca_btl_usnic_component.num_modules;
             --i;
             continue;
@@ -437,7 +441,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         /* See if the requested eager_limit is larger than the max
            payload */
         if (module->super.btl_eager_limit > max_payload) {
-            opal_show_help("help-mpi-btl-usnic.txt", "eager_limit too high",
+            orte_show_help("help-mpi-btl-usnic.txt", "eager_limit too high",
                            true, 
                            orte_process_info.nodename,
                            ibv_get_device_name(port->device->device), 
