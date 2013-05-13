@@ -657,7 +657,7 @@ static int init_qp(ompi_btl_usnic_module_t* module)
                        ibv_get_device_name(module->device), 
                        module->port_num,
                        "ibv_create_qp()", __FILE__, __LINE__,
-                       "Failed to create a USNIC QP; check CIMC/UCSM to ensure enough USNIC QPs are provisioned");
+                       "Failed to create a USNIC QP; check CIMC/UCSM to ensure enough USNIC devices are provisioned");
         return OMPI_ERR_OUT_OF_RESOURCE;
     }
 
