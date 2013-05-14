@@ -244,22 +244,18 @@ void ompi_btl_usnic_frag_send_return_cond(struct ompi_btl_usnic_module_t *module
     assert(FRAG_STATE_GET(frag, FRAG_ALLOCED));
     assert(OMPI_BTL_USNIC_FRAG_SEND == frag->type);
 
-    if (OPAL_LIKELY(frag->base.des_flags & MCA_BTL_DES_FLAGS_BTL_OWNERSHIP)) {
-        if (FRAG_STATE_GET(frag, FRAG_SEND_ACKED) &&
-            0 == frag->send_wr_posted && 
-            !FRAG_STATE_GET(frag, FRAG_SEND_ENQUEUED)) {
-            if (!FRAG_STATE_GET(frag, FRAG_PML_CALLED_BACK)) {
-                opal_output(0, "=============== PML wasn't called back!  frag %p",
-                            (void*) frag);
-                ompi_btl_usnic_frag_dump(frag);
-            }
-
-            assert(FRAG_STATE_GET(frag, FRAG_SEND_ACKED));
-            assert(0 == frag->send_wr_posted);
-            assert(!FRAG_STATE_GET(frag, FRAG_SEND_ENQUEUED));
-            assert(FRAG_STATE_GET(frag, FRAG_PML_CALLED_BACK));
-            ompi_btl_usnic_frag_send_return(module, frag);
+    if (ompi_btl_usnic_frag_send_ok_to_return(module, frag)) {
+        if (!FRAG_STATE_GET(frag, FRAG_PML_CALLED_BACK)) {
+            opal_output(0, "=============== PML wasn't called back!  frag %p",
+                        (void*) frag);
+            ompi_btl_usnic_frag_dump(frag);
         }
+
+        assert(FRAG_STATE_GET(frag, FRAG_SEND_ACKED));
+        assert(0 == frag->send_wr_posted);
+        assert(!FRAG_STATE_GET(frag, FRAG_SEND_ENQUEUED));
+        assert(FRAG_STATE_GET(frag, FRAG_PML_CALLED_BACK));
+        ompi_btl_usnic_frag_send_return(module, frag);
     }
 }
 
