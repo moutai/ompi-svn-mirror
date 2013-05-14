@@ -27,6 +27,7 @@
 #endif
 
 #include "opal/mca/mca.h"
+#include "opal/util/argv.h"
 #include "opal/util/output.h"
 #include "opal/mca/base/base.h"
 
@@ -236,11 +237,6 @@ static int orte_rmaps_base_open(mca_base_open_flag_t flags)
     orte_rmaps_base.slot_list = NULL;
     orte_rmaps_base.mapping = 0;
     orte_rmaps_base.ranking = 0;
-
-    /* Debugging / verbose output.  Always have stream open, with
-       verbose set by the mca open system... */
-    orte_rmaps_base_framework.framework_output = opal_output_open(NULL);
-
 
     if (NULL == rmaps_base_mapping_policy) {
         ORTE_SET_MAPPING_POLICY(orte_rmaps_base.mapping, ORTE_MAPPING_BYSLOT);

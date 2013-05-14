@@ -1025,19 +1025,9 @@ int orterun(int argc, char *argv[])
     rc = orte_plm.spawn(jdata);
 
     /* loop the event lib until an exit event is detected */
-#if ORTE_ENABLE_PROGRESS_THREADS
-    while (orte_event_base_active) {
-        /* provide a very short quiet period so we
-         * don't hammer the cpu while
-         */
-        struct timespec tp = {0, 100};
-        nanosleep(&tp, NULL);
-    }
-#else
     while (orte_event_base_active) {
         opal_event_loop(orte_event_base, OPAL_EVLOOP_ONCE);
     }
-#endif
 
     /* ensure all local procs are dead */
     orte_odls.kill_local_procs(NULL);
@@ -2885,6 +2875,10 @@ void orte_debugger_init_after_spawn(int fd, short event, void *cbdata)
                      */
                     continue;
                 }
+                opal_output_verbose(2, orte_debug_output,
+                                    "%s sending debugger release to %s",
+                                    ORTE_NAME_PRINT(ORTE_PROC_MY_NAME),
+                                    ORTE_NAME_PRINT(&proc->name));
                 buf = OBJ_NEW(opal_buffer_t); /* don't need anything in this */
                 if (0 > (rc = orte_rml.send_buffer_nb(&proc->name, buf,
                                                       ORTE_RML_TAG_DEBUGGER_RELEASE, 0,

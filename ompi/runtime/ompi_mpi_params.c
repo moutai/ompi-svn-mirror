@@ -81,7 +81,7 @@ int ompi_mpi_register_params(void)
 
     /* Whether we want MPI API function parameter checking or not */
 
-    ompi_mpi_param_check = false;
+    ompi_mpi_param_check = true;
     (void) mca_base_var_register("ompi", "mpi", NULL, "param_check",
                                  "Whether you want MPI API parameters checked at run-time or not.  Possible values are 0 (no checking) and 1 (perform checking at run-time)",
                                  MCA_BASE_VAR_TYPE_BOOL, NULL, 0, 0,
@@ -278,7 +278,7 @@ int ompi_mpi_register_params(void)
                                  MCA_BASE_VAR_SCOPE_READONLY,
                                  &ompi_mpi_leave_pinned_pipeline);
     
-    if (ompi_mpi_leave_pinned && ompi_mpi_leave_pinned_pipeline) {
+    if (ompi_mpi_leave_pinned > 0 && ompi_mpi_leave_pinned_pipeline) {
         ompi_mpi_leave_pinned_pipeline = 0;
         opal_show_help("help-mpi-runtime.txt", 
                        "mpi-params:leave-pinned-and-pipeline-selected",
