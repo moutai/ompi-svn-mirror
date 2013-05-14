@@ -139,8 +139,23 @@ void ompi_btl_usnic_ack_timeout(opal_hotel_t *hotel, int room_num,
     }
 #endif
 
-    /* Do we have a send WQE available for the resend? */
-    if (FAKE_FAIL_TO_RESEND_FRAG || 0 == module->sd_wqe) {
+    /* Do we have a send WQE available for the resend?  NOTE: We
+       reserve several WQEs for the PML.  If we don't do this, we may
+       completely exhaust SQ WQEs with resends, and then a btl.send
+       downcall will return OMPI_ERR_OUT_OF_RESOURCE to the PML.  The
+       PML will queue up the frag, but since the SQ was full of
+       resends, none of them will trigger an upcall to the PML when
+       they complete -- so the PML will never be notified that it
+       should try to send its previously-deferred message again.
+       Deadlock!
+
+       So we reserve a few WQEs here to ensure that that will never
+       happen.
+
+       That being said, a *better* solution will be to move all
+       fragmenting down here to the BTL, but that's a larger overhaul
+       and will come in a future version. */
+    if (FAKE_FAIL_TO_RESEND_FRAG || OPAL_UNLIKELY(module->sd_wqe < 10)) {
         opal_output(-1, "============== ACK timeout: no send WQEs available: %d, send_wr_posted %d, pml_called_back %d, module %p, frag %p", module->sd_wqe, 
                     frag->send_wr_posted, 
                     FRAG_STATE_ISSET(frag, FRAG_PML_CALLED_BACK),
