@@ -209,10 +209,6 @@ ompi_btl_usnic_frag_send_alloc(ompi_btl_usnic_module_t *module)
  * completes (e.g., if an ACK comes in super fast, and/or if the
  * frag's pending completion is for a resent, and the ACK is for a
  * prior send/resend of this frag). 
- *
- * JMS This function is for debugging only -- it should be deleted
- * (and possibly just replaced with some asserts?) when we remove the
- * corresponding call to it in from _ack.c.
  */
 bool ompi_btl_usnic_frag_send_ok_to_return(ompi_btl_usnic_module_t *module,
                                              ompi_btl_usnic_frag_t *frag)
@@ -220,7 +216,8 @@ bool ompi_btl_usnic_frag_send_ok_to_return(ompi_btl_usnic_module_t *module,
     assert(frag);
     assert(OMPI_BTL_USNIC_FRAG_SEND == frag->type);
 
-    if (FRAG_STATE_GET(frag, FRAG_SEND_ACKED) && 
+    if (OPAL_LIKELY(frag->base.des_flags & MCA_BTL_DES_FLAGS_BTL_OWNERSHIP) &&
+        FRAG_STATE_GET(frag, FRAG_SEND_ACKED) && 
         !FRAG_STATE_GET(frag, FRAG_SEND_ENQUEUED) &&
         0 == frag->send_wr_posted) {
         return true;

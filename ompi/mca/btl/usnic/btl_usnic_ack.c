@@ -197,8 +197,6 @@ void ompi_btl_usnic_ack_timeout_part2(ompi_btl_usnic_module_t *module,
                     FRAG_STATE_ISSET(frag, FRAG_PML_CALLED_BACK));
 #endif
 
-        /* JMS This is for debugging only -- we should directly just
-           call frag_send_return() when finished. */
         if (OPAL_LIKELY(ompi_btl_usnic_frag_send_ok_to_return(module, frag))) {
             ompi_btl_usnic_frag_send_return(module, frag);
         } else {
