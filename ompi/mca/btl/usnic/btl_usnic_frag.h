@@ -140,8 +140,7 @@ typedef enum {
     FRAG_SEND_ACKED = 0x02,
     FRAG_SEND_ENQUEUED = 0x04,
     FRAG_PML_CALLED_BACK = 0x08,
-    FRAG_PML_FREED = 0x10,
-    FRAG_IN_HOTEL = 0x20,
+    FRAG_IN_HOTEL = 0x10,
 
     /* Frag states: receive frags */
     FRAG_RECV_WR_POSTED = 0x40,

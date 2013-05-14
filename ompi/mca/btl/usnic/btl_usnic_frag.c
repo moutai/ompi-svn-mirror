@@ -220,9 +220,6 @@ bool ompi_btl_usnic_frag_send_ok_to_return(ompi_btl_usnic_module_t *module,
     assert(frag);
     assert(OMPI_BTL_USNIC_FRAG_SEND == frag->type);
 
-    if (FRAG_STATE_GET(frag, FRAG_PML_FREED)) {
-        return true;
-    }
     if (FRAG_STATE_GET(frag, FRAG_SEND_ACKED) && 
         !FRAG_STATE_GET(frag, FRAG_SEND_ENQUEUED) &&
         0 == frag->send_wr_posted) {
@@ -351,7 +348,7 @@ static void dump_send_frag(ompi_btl_usnic_frag_t* frag)
     memset(out, 0, sizeof(out));
 
     snprintf(out, sizeof(out),
-             "=== SEND frag %p (MCW %d): alloced %d send_wr %d acked %d enqueued %d pml_callback %d pml_free %d hotel %d || seq %lu", 
+             "=== SEND frag %p (MCW %d): alloced %d send_wr %d acked %d enqueued %d pml_callback %d hotel %d || seq %lu", 
              (void*) frag, 
              ompi_proc_local()->proc_name.vpid,
              FRAG_STATE_ISSET(frag, FRAG_ALLOCED),
@@ -359,7 +356,6 @@ static void dump_send_frag(ompi_btl_usnic_frag_t* frag)
              FRAG_STATE_ISSET(frag, FRAG_SEND_ACKED),
              FRAG_STATE_ISSET(frag, FRAG_SEND_ENQUEUED),
              FRAG_STATE_ISSET(frag, FRAG_PML_CALLED_BACK),
-             FRAG_STATE_ISSET(frag, FRAG_PML_FREED),
              FRAG_STATE_ISSET(frag, FRAG_IN_HOTEL),
 #if RELIABILITY
              FRAG_STATE_ISSET(frag, FRAG_ALLOCED) ?
