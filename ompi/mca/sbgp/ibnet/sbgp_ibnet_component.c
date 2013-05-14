@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2009-2012 Oak Ridge National Laboratory.  All rights reserved.
  * Copyright (c) 2009-2012 Mellanox Technologies.  All rights reserved.
+ * Copyright (c) 2012 Cisco Systems, Inc.  All rights reserved.
  * $COPYRIGHT$
  *
  * Additional copyrights may follow
@@ -47,15 +48,6 @@ static int mca_sbgp_ibnet_open(void);
 static int mca_sbgp_ibnet_close(void);
 static int mca_sbgp_ibnet_init_query(bool enable_progress_threads,
         bool enable_mpi_threads);
-
-static inline int mca_sbgp_ibnet_param_register_int(
-        const char* param_name, int default_value)
-{
-    int id = mca_base_param_register_int("sbgp","ibnet",param_name,NULL,default_value);
-    int param_value = default_value;
-    mca_base_param_lookup_int(id,&param_value);
-    return param_value;
-}
 
 /*
  * Instantiate the public struct with all of our public information

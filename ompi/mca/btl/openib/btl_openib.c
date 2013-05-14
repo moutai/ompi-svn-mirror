@@ -10,7 +10,7 @@
  *                         University of Stuttgart.  All rights reserved.
  * Copyright (c) 2004-2005 The Regents of the University of California.
  *                         All rights reserved.
- * Copyright (c) 2007-2010 Cisco Systems, Inc.  All rights reserved.
+ * Copyright (c) 2007-2012 Cisco Systems, Inc.  All rights reserved.
  * Copyright (c) 2006-2009 Mellanox Technologies. All rights reserved.
  * Copyright (c) 2006-2012 Los Alamos National Security, LLC.  All rights
  *                         reserved.
@@ -436,7 +436,7 @@ mca_btl_openib_transport_type_t mca_btl_openib_get_transport_type(mca_btl_openib
 #ifdef HAVE_STRUCT_IBV_DEVICE_TRANSPORT_TYPE
     switch(openib_btl->device->ib_dev->transport_type) {
         case IBV_TRANSPORT_IB:
-#ifdef OMPI_HAVE_RDMAOE
+#if defined(HAVE_IBV_LINK_LAYER_ETHERNET)
             switch(openib_btl->ib_port_attr.link_layer) {
                 case IBV_LINK_LAYER_ETHERNET:
                     return MCA_BTL_OPENIB_TRANSPORT_RDMAOE;
@@ -1291,25 +1291,27 @@ static int mca_btl_openib_finalize_resources(struct mca_btl_base_module_t* btl) 
     }
 
     /* Release all QPs */
-    for (ep_index=0;
-         ep_index < opal_pointer_array_get_size(openib_btl->device->endpoints);
-         ep_index++) {
-        endpoint=(mca_btl_openib_endpoint_t *)opal_pointer_array_get_item(openib_btl->device->endpoints,
-                                                  ep_index);
-        if(!endpoint) {
-            BTL_VERBOSE(("In finalize, got another null endpoint"));
-            continue;
-        }
-        if(endpoint->endpoint_btl != openib_btl) {
-            continue;
-        }
-        for(i = 0; i < openib_btl->device->eager_rdma_buffers_count; i++) {
-            if(openib_btl->device->eager_rdma_buffers[i] == endpoint) {
-                openib_btl->device->eager_rdma_buffers[i] = NULL;
-                OBJ_RELEASE(endpoint);
+    if (NULL != openib_btl->device->endpoints) {
+        for (ep_index=0;
+             ep_index < opal_pointer_array_get_size(openib_btl->device->endpoints);
+             ep_index++) {
+            endpoint=(mca_btl_openib_endpoint_t *)opal_pointer_array_get_item(openib_btl->device->endpoints,
+                                                                              ep_index);
+            if(!endpoint) {
+                BTL_VERBOSE(("In finalize, got another null endpoint"));
+                continue;
             }
+            if(endpoint->endpoint_btl != openib_btl) {
+                continue;
+            }
+            for(i = 0; i < openib_btl->device->eager_rdma_buffers_count; i++) {
+                if(openib_btl->device->eager_rdma_buffers[i] == endpoint) {
+                    openib_btl->device->eager_rdma_buffers[i] = NULL;
+                    OBJ_RELEASE(endpoint);
+                }
+            }
+            OBJ_RELEASE(endpoint);
         }
-        OBJ_RELEASE(endpoint);
     }
 
     /* Release SRQ resources */

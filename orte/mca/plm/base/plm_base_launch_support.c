@@ -214,13 +214,13 @@ void orte_plm_base_setup_job(int fd, short args, void *cbdata)
 
     /* get collective ids for the std MPI operations */
     caddy->jdata->peer_modex = orte_grpcomm_base_get_coll_id();
-    modx_par = mca_base_param_environ_variable("orte", NULL, "peer_modex_id");
+    modx_par = mca_base_param_env_var ("orte_peer_modex_id");
     asprintf(&modx_val, "%d", caddy->jdata->peer_modex);
     caddy->jdata->peer_init_barrier = orte_grpcomm_base_get_coll_id();
-    bar1_par = mca_base_param_environ_variable("orte", NULL, "peer_init_barrier_id");
+    bar1_par = mca_base_param_env_var ("orte_peer_init_barrier_id");
     asprintf(&bar1_val, "%d", caddy->jdata->peer_init_barrier);
     caddy->jdata->peer_fini_barrier = orte_grpcomm_base_get_coll_id();
-    bar2_par = mca_base_param_environ_variable("orte", NULL, "peer_fini_barrier_id");
+    bar2_par = mca_base_param_env_var ("orte_peer_fini_barrier_id");
     asprintf(&bar2_val, "%d", caddy->jdata->peer_fini_barrier);
 
     /* if app recovery is not defined, set apps to defaults */
@@ -463,9 +463,6 @@ void orte_plm_base_post_launch(int fd, short args, void *cbdata)
         return;
     }
 
-    /* complete debugger interface */
-    ORTE_ACTIVATE_JOB_STATE(jdata, ORTE_JOB_STATE_READY_FOR_DEBUGGERS);
-
     /* cleanup */
     OBJ_RELEASE(caddy);
 }
@@ -537,8 +534,9 @@ void orte_plm_base_registered(int fd, short args, void *cbdata)
     }
 
  cleanup:
-    /* RHC: need to init_after_spawn for debuggers */
-    /* no state to activate - this ends the launch sequence */
+    /* need to init_after_spawn for debuggers */
+    ORTE_ACTIVATE_JOB_STATE(jdata, ORTE_JOB_STATE_READY_FOR_DEBUGGERS);
+
     OBJ_RELEASE(caddy);
 }
 
