@@ -242,7 +242,7 @@ $specfile .= $_
 close(SPEC);
 $specfile =~ s/\$VERSION/$version/g;
 $specfile =~ s/\$EXTENSION/bz2/g;
-$specfile =~ s/Provides: mpi/Provides: mpi\nRequires: libusnic/;
+$specfile =~ s/Provides: mpi/Provides: mpi\nRequires: libusnic_verbs/;
 my $specdest = "$ENV{HOME}/RPMS/SPECS/openmpi.spec";
 unlink($specdest);
 open(SPEC, ">$specdest")
