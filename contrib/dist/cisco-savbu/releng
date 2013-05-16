@@ -174,22 +174,17 @@ if (exists($ENV{LOADEDMODULES}) &&
 do_command("git checkout VERSION");
 open(V, "VERSION")
     || die "Can't open VERSION";
-my $version;
-$version .= $_
+my $str;
+$str .= $_
     while (<V>);
 close(V);
 # We need to set want_svn to 0
-$version =~ s/^want_svn=\d+$/want_svn=0/m;
+$str =~ s/^want_svn=\d+$/want_svn=0/m;
 # Set the build number
-$version =~ s/^greek=.*$/greek=cisco$build_arg/m;
+$str =~ s/^greek=.*$/greek=cisco$build_arg/m;
 open(V, ">VERSION");
-print V $version;
+print V $str;
 close(V);
-
-# Get the version we're building
-my $version = `./config/ompi_get_version.sh VERSION`;
-chomp($version);
-print "=== Making version $version\n";
 
 # Autogen, configure, make dist.  Note that Open MPI changed from
 # autogen.sh to autogen.pl after the v1.6 series; so future-proof this
@@ -199,6 +194,11 @@ $a = "autogen.pl"
     if (-x "autogen.pl");
 print "=== Running $a...\n";
 do_command("./$a");
+
+# Get the version we're building.  Can't do this until after autogen!
+my $version = `./config/ompi_get_version.sh VERSION`;
+chomp($version);
+print "=== Making version $version\n";
 
 print "=== Running configure...\n";
 do_command("./configure --enable-dist");
