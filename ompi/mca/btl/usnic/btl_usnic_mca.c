@@ -142,11 +142,11 @@ int ompi_btl_usnic_component_register(void)
                      NULL, &mca_btl_usnic_component.if_exclude,
                      REGSTR_EMPTY_OK));
 
-    /* Cisco Sereno-based VICs are part ID 127 */
+    /* Cisco Sereno-based VICs are part ID 207 */
     str = NULL;
     CHECK(reg_string("vendor_part_ids",
                      "Comma-delimited list verbs vendor part IDs to search for/use",
-                     "127", &str, 0));
+                     "207", &str, 0));
     parts = opal_argv_split(str, ',');
     free(str);
     mca_btl_usnic_component.vendor_part_ids = 
