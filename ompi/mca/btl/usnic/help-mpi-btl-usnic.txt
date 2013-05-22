@@ -25,6 +25,15 @@ in either lower performance or your job aborting.
   Failed function: %s (%s:%d)
   Description:     %s
 #
+[async event]
+Open MPI detected a fatal error on a USNIC port.  Your MPI job will
+now abort; sorry.
+
+  Server:           %s
+  Device:           %s
+  Port:             %d
+  Async event code: %d
+#
 [internal error]
 An internal error has occurred in the Open MPI USNIC BTL.  This is
 highly unusual and shouldn't happen.  It suggests that there may be

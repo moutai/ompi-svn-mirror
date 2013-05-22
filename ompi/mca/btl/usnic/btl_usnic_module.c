@@ -23,6 +23,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "opal/class/opal_bitmap.h"
 #include "opal/prefetch.h"
@@ -31,6 +32,7 @@
 #include "opal/include/opal_stdint.h"
 
 #include "orte/util/show_help.h"
+#include "orte/mca/errmgr/errmgr.h"
 
 #include "ompi/mca/btl/btl.h"
 #include "ompi/mca/btl/base/btl_base_error.h"
@@ -188,6 +190,19 @@ static int usnic_del_procs(struct mca_btl_base_module_t* btl,
     return OMPI_SUCCESS;
 }
 
+
+/*
+ * Let the PML register a callback function with me
+ */
+static int usnic_register_pml_err_cb(struct mca_btl_base_module_t* btl, 
+                                     mca_btl_base_module_error_cb_fn_t cbfunc)
+{
+    ompi_btl_usnic_module_t *module = (ompi_btl_usnic_module_t*) btl;
+
+    module->pml_error_callback = cbfunc;
+
+    return OMPI_SUCCESS;
+}
 
 /**
  * Allocate PML control messages or eager frags if BTL does not have
@@ -458,6 +473,11 @@ static int usnic_finalize(struct mca_btl_base_module_t* btl)
 {
     ompi_btl_usnic_module_t* module = (ompi_btl_usnic_module_t*)btl;
 
+    if (module->device_async_event_active) {
+        opal_event_del(&(module->device_async_event));
+        module->device_async_event_active = false;
+    }
+
     ibv_destroy_qp(module->qp);
     ibv_dealloc_pd(module->pd);
     
@@ -627,6 +647,72 @@ static int usnic_dereg_mr(void* reg_data,
     return OMPI_SUCCESS;
 }
 
+
+/*
+ * Called back by libevent if an async event occurs on the device
+ */
+static void module_async_event_callback(int fd, short flags, void *arg)
+{
+    bool got_event = false;
+    bool fatal = false;
+    ompi_btl_usnic_module_t *module = (ompi_btl_usnic_module_t*) arg;
+    struct ibv_async_event event;
+
+    /* Get the async event */
+    if (0 != ibv_get_async_event(module->device_context, &event)) {
+        /* This shouldn't happen.  If it does, treat this as a fatal
+           error. */
+        fatal = true;
+    } else {
+        got_event = true;
+    }
+
+    /* Process the event */
+    if (got_event) {
+        switch (event.event_type) {
+            /* For the moment, these are the only cases usnic_verbs.ko
+               will report to us.  However, they're only listed here
+               for completeness.  We currently abort if any async
+               event occurs. */
+        case IBV_EVENT_QP_FATAL:
+        case IBV_EVENT_PORT_ERR:
+        case IBV_EVENT_PORT_ACTIVE:
+#if BTL_USNIC_HAVE_IBV_EVENT_GID_CHANGE
+        case IBV_EVENT_GID_CHANGE:
+#endif
+        default:
+            orte_show_help("help-mpi-btl-usnic.txt", "async event",
+                           true, 
+                           orte_process_info.nodename,
+                           ibv_get_device_name(module->device), 
+                           module->port_num,
+                           event.event_type);
+            module->pml_error_callback(&module->super, 
+                                       MCA_BTL_ERROR_FLAGS_FATAL,
+                                       ompi_proc_local(), "usnic");
+            /* The PML error callback will likely not return (i.e., it
+               will likely kill the job).  But in case someone
+               implements a non-fatal PML error callback someday, do
+               reasonable things just in case it does actually
+               return. */
+            fatal = true;
+            break;
+        }
+
+        /* Ack the event back to verbs */
+        ibv_ack_async_event(&event);
+    }
+
+    /* If this is fatal, invoke the upper layer error handler to abort
+       the job */
+    if (fatal) {
+        orte_errmgr.abort(1, NULL);
+        /* If this returns, wait to be killed */
+        while (1) {
+            sleep(99999);
+        }
+    }
+}
 
 /*
  * Create a single UD queue pair.
@@ -800,6 +886,14 @@ int ompi_btl_usnic_module_init(ompi_btl_usnic_module_t *module)
                        "Failed to create a CQ");
         goto mpool_destroy;
     }
+
+    /* Get the fd to receive events on this device */
+    opal_event_set(&(module->device_async_event),
+                   module->device_context->async_fd, 
+                   OPAL_EV_READ | OPAL_EV_PERSIST, 
+                   module_async_event_callback, module);
+    opal_event_add(&(module->device_async_event), NULL);
+    module->device_async_event_active = true;
 
     /* Set up the QP for this BTL */
     rc = init_qp(module);
@@ -990,7 +1084,7 @@ ompi_btl_usnic_module_t ompi_btl_usnic_module_template = {
         NULL, /*ompi_btl_usnic_get */
         mca_btl_base_dump,
         NULL, /* mpool -- to be filled in later */
-        NULL, /* register error */
+        usnic_register_pml_err_cb,
         usnic_ft_event
     }
 };

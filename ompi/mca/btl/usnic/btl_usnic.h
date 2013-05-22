@@ -151,9 +151,13 @@ typedef mca_btl_base_recv_reg_t ompi_btl_usnic_recv_reg_t;
 typedef struct ompi_btl_usnic_module_t {
     mca_btl_base_module_t super;
 
+    mca_btl_base_module_error_cb_fn_t pml_error_callback;
+
     uint8_t port_num;
     struct ibv_device *device;
     struct ibv_context *device_context;
+    struct event device_async_event;
+    bool device_async_event_active;
     struct ibv_pd *pd;
     struct ibv_cq *cq;
 
