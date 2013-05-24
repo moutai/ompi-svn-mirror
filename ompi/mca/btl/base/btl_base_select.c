@@ -47,6 +47,7 @@ int mca_btl_base_select(bool enable_progress_threads,
                         bool enable_mpi_threads)
 {
     int i, num_btls;
+    opal_list_t btls_to_close;
     opal_list_item_t *item;
     mca_base_component_list_item_t *cli;
     mca_btl_base_component_t *component;
@@ -55,6 +56,8 @@ int mca_btl_base_select(bool enable_progress_threads,
 
     char** include = opal_argv_split(mca_btl_base_include, ',');
     char** exclude = opal_argv_split(mca_btl_base_exclude, ',');
+
+    OBJ_CONSTRUCT(&btls_to_close, opal_list_t);
 
     /* Traverse the list of opened modules; call their init
        functions. */
@@ -122,8 +125,8 @@ int mca_btl_base_select(bool enable_progress_threads,
                                     "select: module %s unloaded",
                                     component->btl_version.mca_component_name);
 
-                mca_base_component_repository_release((mca_base_component_t *) component);
                 opal_list_remove_item(&mca_btl_base_components_opened, item);
+                opal_list_append(&btls_to_close, item);
             } 
 
             /* Otherwise, it initialized properly.  Save it. */
@@ -160,5 +163,14 @@ int mca_btl_base_select(bool enable_progress_threads,
                        "btl");
         orte_errmgr.abort(1, NULL);
     }
+
+    /* Close/release all the components that said they don't want to
+       run */
+    if (!opal_list_is_empty(&btls_to_close)) {
+        mca_base_components_close(mca_btl_base_output,
+                                  &btls_to_close, NULL);
+    }
+    OBJ_DESTRUCT(&btls_to_close);
+
     return OMPI_SUCCESS;
 }
