@@ -472,6 +472,7 @@ static void usnic_stats_callback(int fd, short flags, void *arg)
 static int usnic_finalize(struct mca_btl_base_module_t* btl)
 {
     ompi_btl_usnic_module_t* module = (ompi_btl_usnic_module_t*)btl;
+    int i;
 
     if (module->device_async_event_active) {
         opal_event_del(&(module->device_async_event));
@@ -489,9 +490,13 @@ static int usnic_finalize(struct mca_btl_base_module_t* btl)
         usnic_stats_callback(0, 0, module);
     }
 
+    for (i=0; i<module->num_endpoints; ++i) {
+        OBJ_DESTRUCT(module->all_endpoints[i]);
+    }
     if (NULL != module->all_endpoints) {
         free(module->all_endpoints);
     }
+
 #if RELIABILITY
     OBJ_DESTRUCT(&module->endpoints_that_need_acks);
     OBJ_DESTRUCT(&module->pending_resend_frags);
