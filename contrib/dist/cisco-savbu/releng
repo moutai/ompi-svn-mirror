@@ -5,6 +5,7 @@ use strict;
 use Cwd;
 use Data::Dumper;
 use Getopt::Long;
+use POSIX qw(strftime);
 
 #--------------------------------------------------------------------------
 
@@ -178,10 +179,30 @@ my $str;
 $str .= $_
     while (<V>);
 close(V);
-# We need to set want_svn to 0
+
+# We need to set want_svn to 0 because we don't want the "svn" number
+# to show up in the official version number (it still shows up in
+# ompi_info output, though).
 $str =~ s/^want_svn=\d+$/want_svn=0/m;
+# Sanity check to ensure that we're building something that was git
+# tagged
+die "This git checkout does not appear to correspond to a git tag -- abort!"
+    if (system("git describe --exact-match 2>&1 > /dev/null") != 0);
+# Set the "svn" number to be the git hash (with a "git_" prefix to
+# make it obvious that it's a git hash, not an SVN r number).
+my $git_id = "git_" . `git log -1 --pretty=tformat:%H`;
+chomp($git_id);
+# v1.6 uses "svn_r"; v1.7 and beyond uses "repo_rev"
+$str =~ s/^svn_r=.*$/svn_r=$git_id/m;
+$str =~ s/^repo_rev=.*$/repo_rev=$git_id/m;
+
 # Set the build number
 $str =~ s/^greek=.*$/greek=cisco$build_arg/m;
+
+# Set the release date
+my $d = strftime("%a %b %d %H:%M:%S %Y %Z", localtime);
+$str =~ s/^date=".*"$/date="$d"/m;
+
 open(V, ">VERSION");
 print V $str;
 close(V);
