@@ -14,8 +14,10 @@ my $help_arg;
 
 my @argv_save = @ARGV;
 my $debug = 0;
+my $skip_tag_check_arg = 0;
 &Getopt::Long::Configure("bundling");
 my $ok = Getopt::Long::GetOptions("build=s" => \$build_arg,
+                                  "skip-tag-check!" => \$skip_tag_check_arg,
                                   "help|h" => \$help_arg);
 
 $help_arg = 1
@@ -186,8 +188,10 @@ close(V);
 $str =~ s/^want_svn=\d+$/want_svn=0/m;
 # Sanity check to ensure that we're building something that was git
 # tagged
-die "This git checkout does not appear to correspond to a git tag -- abort!"
-    if (system("git describe --exact-match 2>&1 > /dev/null") != 0);
+if (!$skip_tag_check_arg) {
+    die "This git checkout does not appear to correspond to a git tag -- abort!"
+        if (system("git describe --exact-match 2>&1 > /dev/null") != 0);
+}
 # Set the "svn" number to be the git hash (with a "git_" prefix to
 # make it obvious that it's a git hash, not an SVN r number).
 my $git_id = "git_" . `git log -1 --pretty=tformat:%H`;
