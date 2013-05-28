@@ -268,6 +268,12 @@ close(SPEC);
 $specfile =~ s/\$VERSION/$version/g;
 $specfile =~ s/\$EXTENSION/bz2/g;
 $specfile =~ s/Provides: mpi/Provides: mpi\nRequires: libusnic_verbs/;
+
+# We want to install in /opt/cisco/..., not just plain /opt.  So
+# update that in the specfile as well (sadly, it's not as simple as
+# just --define "_prefix /opt/cisco/..." on the command line).
+$specfile =~ s@/opt/@/opt/cisco/@g;
+
 my $specdest = "$ENV{HOME}/RPMS/SPECS/openmpi.spec";
 unlink($specdest);
 open(SPEC, ">$specdest")
