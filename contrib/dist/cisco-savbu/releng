@@ -190,7 +190,7 @@ $str =~ s/^want_svn=\d+$/want_svn=0/m;
 # tagged
 if (!$skip_tag_check_arg) {
     die "This git checkout does not appear to correspond to a git tag -- abort!"
-        if (system("git describe --exact-match 2>&1 > /dev/null") != 0);
+        if (system("git describe --exact-match --tags 2>&1 > /dev/null") != 0);
 }
 # Set the "svn" number to be the git hash (with a "git_" prefix to
 # make it obvious that it's a git hash, not an SVN r number).
