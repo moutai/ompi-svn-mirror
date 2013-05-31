@@ -193,8 +193,10 @@ if (!$skip_tag_check_arg) {
         if (system("git describe --exact-match --tags 2>&1 > /dev/null") != 0);
 }
 # Set the "svn" number to be the git hash (with a "git_" prefix to
-# make it obvious that it's a git hash, not an SVN r number).
-my $git_id = "git_" . `git log -1 --pretty=tformat:%H`;
+# make it obvious that it's a git hash, not an SVN r number).  Note
+# that we must use "%h" to use the short hash, because otherwise it's
+# too long for Fortran (!).  :-(
+my $git_id = "git_" . `git log -1 --pretty=tformat:%h`;
 chomp($git_id);
 # v1.6 uses "svn_r"; v1.7 and beyond uses "repo_rev"
 $str =~ s/^svn_r=.*$/svn_r=$git_id/m;
@@ -269,10 +271,12 @@ $specfile =~ s/\$VERSION/$version/g;
 $specfile =~ s/\$EXTENSION/bz2/g;
 $specfile =~ s/Provides: mpi/Provides: mpi\nRequires: libusnic_verbs/;
 
-# We want to install in /opt/cisco/..., not just plain /opt.  So
-# update that in the specfile as well (sadly, it's not as simple as
-# just --define "_prefix /opt/cisco/..." on the command line).
-$specfile =~ s@/opt/@/opt/cisco/@g;
+# We want to install in /opt/cisco/%{name}, not
+# /opt/%{name}/%{version}.  So update that in the specfile as well
+# (sadly, it's not as simple as just --define "_prefix /opt/cisco/..."
+# on the command line).
+$specfile =~ s@/opt/%{name}/%{version}@/opt/cisco/%{name}@g;
+$specfile =~ s@/opt/%{name}@/opt/cisco/%{name}@g;
 
 my $specdest = "$ENV{HOME}/RPMS/SPECS/openmpi.spec";
 unlink($specdest);
@@ -302,7 +306,7 @@ $config_options = "--with-verbs"
 my $rpmbuild_options;
 $rpmbuild_options = "--define \"install_in_opt 1\"";
 $rpmbuild_options = "$rpmbuild_options --define \"mflags -j32\"";
-$rpmbuild_options = "$rpmbuild_options --define \"configure_options $config_options --disable-vt --disable-mpi-fortran --disable-mpi-cxx --enable-mpi-ext=all LDFLAGS=-Wl,--build-id\"";
+$rpmbuild_options = "$rpmbuild_options --define \"configure_options $config_options --enable-mpi-ext=all LDFLAGS=-Wl,--build-id\"";
 $rpmbuild_options = "$rpmbuild_options --define \"build_debuginfo_rpm 1\"";
 
 print "  = Building RPM\n";
