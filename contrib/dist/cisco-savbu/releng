@@ -13,17 +13,23 @@ my $build_arg;
 my $help_arg;
 
 my @argv_save = @ARGV;
-my $debug = 0;
+my $debug_arg = 0;
 my $skip_tag_check_arg = 0;
 &Getopt::Long::Configure("bundling");
 my $ok = Getopt::Long::GetOptions("build=s" => \$build_arg,
                                   "skip-tag-check!" => \$skip_tag_check_arg,
+                                  "debug!" => \$debug_arg,
                                   "help|h" => \$help_arg);
 
 $help_arg = 1
     if (!$ok);
 if ($help_arg) {
-    print "$0 --build=BUILD_ID\n";
+    print "$0 --build=BUILD_ID [--skip-tag-check|--debug|--help]
+
+--build=BUILD_ID  Sets the build ID
+--skip-tag-check  Skips the git tag check
+--debug           Shows the commands being run, and their output
+--help            Shows this message\n";
     exit($ok);
 }
 
@@ -38,7 +44,7 @@ if (!defined($build_arg)) {
 sub do_command {
     my ($cmd) = @_;
 
-    print "*** Running command: $cmd\n" if ($debug);
+    print "*** Running command: $cmd\n" if ($debug_arg);
     pipe OUTread, OUTwrite;
 
     # Child
@@ -115,7 +121,7 @@ sub do_command {
                 --$done;
             } else {
                 push(@out, $data);
-                print "OUT:$data" if ($debug);
+                print "OUT:$data" if ($debug_arg);
             }
         }
     }
@@ -125,7 +131,7 @@ sub do_command {
 
     waitpid($pid, 0);
     my $status = $?;
-    print "*** Command complete, exit status: $status\n" if ($debug);
+    print "*** Command complete, exit status: $status\n" if ($debug_arg);
 
     # Return an anonymous hash containing the relevant data
 
@@ -165,7 +171,6 @@ die "Must be from a Cisco/USNIC Open MPI checkout"
 if (exists($ENV{LOADEDMODULES}) &&
     $ENV{LOADEDMODULES} =~ /gcc/) {
     print "=== Unloading a bunch of environment modules and re-running...\n";
-    sleep(1);
     my $ret = system(". /etc/profile.d/modules.sh ; module unload gcc cisco/gcc cisco/intel-compilers cisco/pgi-compilers cisco/clang-compilers; $0 " . 
                      join(' ', @argv_save));
     exit($ret);
@@ -186,12 +191,14 @@ close(V);
 # to show up in the official version number (it still shows up in
 # ompi_info output, though).
 $str =~ s/^want_svn=\d+$/want_svn=0/m;
+
 # Sanity check to ensure that we're building something that was git
 # tagged
 if (!$skip_tag_check_arg) {
     die "This git checkout does not appear to correspond to a git tag -- abort!"
         if (system("git describe --exact-match --tags 2>&1 > /dev/null") != 0);
 }
+
 # Set the "svn" number to be the git hash (with a "git_" prefix to
 # make it obvious that it's a git hash, not an SVN r number).  Note
 # that we must use "%h" to use the short hash, because otherwise it's
@@ -262,23 +269,14 @@ mkdir("$ENV{HOME}/RPMS/SRPMS");
 do_command("cp openmpi-$version.tar.bz2 $ENV{HOME}/RPMS/SOURCES");
 
 # Preprocess the specfile and put it in the right place
-open(SPEC, "contrib/dist/linux/openmpi.spec");
+open(SPEC, "contrib/dist/cisco-savbu/openmpi-cisco.spec");
 my $specfile;
 $specfile .= $_
     while (<SPEC>);
 close(SPEC);
 $specfile =~ s/\$VERSION/$version/g;
-$specfile =~ s/\$EXTENSION/bz2/g;
-$specfile =~ s/Provides: mpi/Provides: mpi\nRequires: libusnic_verbs/;
 
-# We want to install in /opt/cisco/%{name}, not
-# /opt/%{name}/%{version}.  So update that in the specfile as well
-# (sadly, it's not as simple as just --define "_prefix /opt/cisco/..."
-# on the command line).
-$specfile =~ s@/opt/%{name}/%{version}@/opt/cisco/%{name}@g;
-$specfile =~ s@/opt/%{name}@/opt/cisco/%{name}@g;
-
-my $specdest = "$ENV{HOME}/RPMS/SPECS/openmpi.spec";
+my $specdest = "$ENV{HOME}/RPMS/SPECS/openmpi-cisco.spec";
 unlink($specdest);
 open(SPEC, ">$specdest")
     || die "Can't open $specdest";
@@ -303,11 +301,13 @@ close(C);
 $config_options = "--with-verbs"
     if ($out =~ /--with-verbs/);
 
-my $rpmbuild_options;
-$rpmbuild_options = "--define \"install_in_opt 1\"";
-$rpmbuild_options = "$rpmbuild_options --define \"mflags -j32\"";
+# For debug builds, remove a bunch of stuff to make the build take
+# less time :-)
+$config_options .= " --disable-vt --disable-mpi-f77 --disable-mpi-cxx"
+    if ($debug_arg);
+
+$rpmbuild_options = "--define \"mflags -j32\"";
 $rpmbuild_options = "$rpmbuild_options --define \"configure_options $config_options --enable-mpi-ext=all LDFLAGS=-Wl,--build-id\"";
-$rpmbuild_options = "$rpmbuild_options --define \"build_debuginfo_rpm 1\"";
 
 print "  = Building RPM\n";
 do_command("rpmbuild $rpmbuild_options -bb $specdest");
