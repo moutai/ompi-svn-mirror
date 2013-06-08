@@ -691,6 +691,7 @@ static void module_async_event_callback(int fd, short flags, void *arg)
                            orte_process_info.nodename,
                            ibv_get_device_name(module->device), 
                            module->port_num,
+                           ibv_event_type_str(event.event_type),
                            event.event_type);
             module->pml_error_callback(&module->super, 
                                        MCA_BTL_ERROR_FLAGS_FATAL,

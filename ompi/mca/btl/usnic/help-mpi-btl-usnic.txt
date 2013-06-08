@@ -32,7 +32,7 @@ now abort; sorry.
   Server:           %s
   Device:           %s
   Port:             %d
-  Async event code: %d
+  Async event code: %s (%d)
 #
 [internal error]
 An internal error has occurred in the Open MPI USNIC BTL.  This is
