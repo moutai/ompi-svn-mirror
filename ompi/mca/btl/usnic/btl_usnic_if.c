@@ -210,8 +210,8 @@ static int btl_usnic_opal_ifinit(void)
 
             /* skip non- af_inet interface addresses */
             if (AF_INET != cur_ifaddrs->ifa_addr->sa_family) {
-		continue;
-	    }
+                continue;
+            }
 
             /* skip interface if it is down (IFF_UP not set) */
             if (0 == (cur_ifaddrs->ifa_flags & IFF_UP)) {
@@ -242,9 +242,10 @@ static int btl_usnic_opal_ifinit(void)
             intf->if_index = opal_list_get_size(&btl_usnic_opal_if_list) + 1;
             ((struct sockaddr_in*) &intf->if_addr)->sin_addr = a4;
             ((struct sockaddr_in*) &intf->if_addr)->sin_family = AF_INET;
-            ((struct sockaddr_in*) &intf->if_addr)->sin_len =  cur_ifaddrs->ifa_addr->sa_len;
+            ((struct sockaddr_in*) &intf->if_addr)->sin_len =
+                cur_ifaddrs->ifa_addr->sa_len;
 
-	    intf->if_mask = prefix( sin_addr->sin_addr.s_addr);
+            intf->if_mask = prefix( sin_addr->sin_addr.s_addr);
             intf->if_flags = cur_ifaddrs->ifa_flags;
 
             intf->if_kernel_index = 

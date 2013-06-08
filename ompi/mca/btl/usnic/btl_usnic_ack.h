@@ -18,13 +18,11 @@
 #include "btl_usnic_frag.h"
 #include "btl_usnic_endpoint.h"
 
-#if RELIABILITY
-
 /*
  * Reap an ACK send that is complete 
  */
 void ompi_btl_usnic_ack_complete(ompi_btl_usnic_module_t *module,
-                                   ompi_btl_usnic_frag_t *frag);
+                                   ompi_btl_usnic_ack_segment_t *ack);
 
 
 /*
@@ -40,15 +38,30 @@ void ompi_btl_usnic_ack_send(ompi_btl_usnic_module_t *module,
 void ompi_btl_usnic_ack_timeout(opal_hotel_t *hotel, int room_num, 
                                   void *occupant);
 
-
 /*
- * Do the actual send from _ack_timeout(), and also for if the resend
- * was queued up from _ack_timeout() due to lack of resources.
+ * Handle an incoming ACK
  */
-void ompi_btl_usnic_ack_timeout_part2(ompi_btl_usnic_module_t *module,
-                                        ompi_btl_usnic_frag_t *frag,
-                                        bool direct);
+void ompi_btl_usnic_handle_ack(ompi_btl_usnic_endpoint_t *endpoint,
+                               ompi_btl_usnic_seq_t ack_seq);
 
+static inline void
+ompi_btl_usnic_piggyback_ack(
+    ompi_btl_usnic_endpoint_t *endpoint,
+    ompi_btl_usnic_send_segment_t *sseg)
+{
+    /* If ACK is needed, piggy-back it here and send it on */
+    if (endpoint->endpoint_ack_needed) {
+        ompi_btl_usnic_remove_from_endpoints_needing_ack(endpoint);
+        sseg->ss_base.us_btl_header->ack_seq = 
+            endpoint->endpoint_next_contig_seq_to_recv - 1;
+#if MSGDEBUG1
+        opal_output(0, "Piggy-backing ACK for sequence %d\n",
+                sseg->ss_base.us_btl_header->ack_seq);
 #endif
+    } else {
+        sseg->ss_base.us_btl_header->ack_seq = 0;
+    }
+}
+
 
 #endif /* BTL_USNIC_ACK_H */

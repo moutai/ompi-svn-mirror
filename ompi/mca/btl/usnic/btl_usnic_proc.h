@@ -68,13 +68,15 @@ void ompi_btl_usnic_proc_finalize(void);
 
 ompi_btl_usnic_proc_t *ompi_btl_usnic_proc_lookup_ompi(ompi_proc_t* ompi_proc);
 
+struct ompi_btl_usnic_module_t;
+
 ompi_btl_usnic_endpoint_t *
-ompi_btl_usnic_proc_lookup_endpoint(ompi_btl_usnic_module_t *receiver,
+ompi_btl_usnic_proc_lookup_endpoint(struct ompi_btl_usnic_module_t *receiver,
                                       uint64_t sender_hashed_orte_name);
 
 ompi_btl_usnic_proc_t *ompi_btl_usnic_proc_create(ompi_proc_t* ompi_proc);
 
-int ompi_btl_usnic_proc_insert(ompi_btl_usnic_module_t *module,
+int ompi_btl_usnic_proc_insert(struct ompi_btl_usnic_module_t *module,
                                  ompi_btl_usnic_proc_t *proc, 
                                  mca_btl_base_endpoint_t *endpoint);
 

@@ -17,7 +17,7 @@
 
 
 void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
-                           ompi_btl_usnic_frag_t *frag,
+                           ompi_btl_usnic_recv_segment_t *rseg,
                            struct ibv_recv_wr **repost_recv_head);
 
 #endif /* BTL_USNIC_RECV_H */

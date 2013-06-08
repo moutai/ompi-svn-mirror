@@ -38,32 +38,62 @@
 #include "btl_usnic_ack.h"
 
 
-void ompi_btl_usnic_send_complete(ompi_btl_usnic_module_t *module,
-                                    ompi_btl_usnic_frag_t *frag)
+/*
+ * This function is called when a send of a full-fragment segment completes
+ * Return the WQE and also return the segment if no ACK pending
+ */
+void
+ompi_btl_usnic_frag_send_complete(ompi_btl_usnic_module_t *module,
+                                    ompi_btl_usnic_send_segment_t *sseg)
 {
+    ompi_btl_usnic_send_frag_t *frag;
+
+    frag = sseg->ss_parent_frag;
+
     /* Reap a frag that was sent */
-    --frag->send_wr_posted;
+    --sseg->ss_send_posted;
+    --frag->sf_seg_post_cnt;
 
-    if (frag->base.des_flags & MCA_BTL_DES_SEND_ALWAYS_CALLBACK) {
-        frag->base.des_cbfunc(&module->super,
-                              frag->endpoint, &frag->base, 
-                              OMPI_SUCCESS);
-        FRAG_STATE_SET(frag, FRAG_PML_CALLED_BACK);
-        ++module->pml_send_callbacks;
+    /* checks for returnability made inside */
+    ompi_btl_usnic_send_frag_return_cond(module, frag);
 
-        /* This frag will cycle back through here if it is resent.
-           And according to the PML, it's already complete.  So let's
-           turn off the SEND_ALWAYS_CALLBACK flag on this frag so that
-           it doesn't invoke the PML callback again. */
-        frag->base.des_flags &= ~MCA_BTL_DES_SEND_ALWAYS_CALLBACK;
+    /* do bookkeeping */
+    ++frag->sf_endpoint->endpoint_send_credits;
+    ++sseg->ss_channel->sd_wqe;
+
+    /* see if this endpoint needs to be made ready-to-send */
+    ompi_btl_usnic_check_rts(frag->sf_endpoint);
+
+}
+
+/*
+ * This function is called when a send segment completes
+ * Return the WQE and also return the segment if no ACK pending
+ */
+void
+ompi_btl_usnic_chunk_send_complete(ompi_btl_usnic_module_t *module,
+                                    ompi_btl_usnic_send_segment_t *sseg)
+{
+    ompi_btl_usnic_send_frag_t *frag;
+
+    frag = sseg->ss_parent_frag;
+
+    /* Reap a frag that was sent */
+    --sseg->ss_send_posted;
+    --frag->sf_seg_post_cnt;
+
+    if (sseg->ss_send_posted == 0 && !sseg->ss_ack_pending) {
+        ompi_btl_usnic_chunk_segment_return(module, sseg);
     }
 
-    /* Return the frag to the freelist (or not; this function does
-       the Right Things) */
-    ompi_btl_usnic_frag_send_return_cond(module, frag);
+    /* done with whole fragment? */
+    /* checks for returnability made inside */
+    ompi_btl_usnic_send_frag_return_cond(module, frag);
 
-    ++module->sd_wqe;
-#if RELIABILITY
-    ompi_btl_usnic_frag_progress_pending_resends(module);
-#endif
+    /* do bookkeeping */
+    ++frag->sf_endpoint->endpoint_send_credits;
+    ++sseg->ss_channel->sd_wqe;
+
+    /* see if this endpoint needs to be made ready-to-send */
+    ompi_btl_usnic_check_rts(frag->sf_endpoint);
 }

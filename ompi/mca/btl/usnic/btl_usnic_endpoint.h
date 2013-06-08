@@ -29,12 +29,28 @@
 #include "opal_hotel.h"
 
 #include "btl_usnic.h"
-#include "btl_usnic_frag.h"
 
 BEGIN_C_DECLS
 
+/*
+ * Forward declarations to avoid include loops
+ */
+struct ompi_btl_usnic_module_t;
+struct ompi_btl_usnic_send_segment_t;
+
+/*
+ * Have the window size as a compile-time constant that is a power of
+ * two so that we can take advantage of fast bit operations.
+ */
+#define WINDOW_SIZE 4096
+#define WINDOW_SIZE_MOD(a) (((a) & (WINDOW_SIZE - 1)))
+#define WINDOW_OPEN(E) ((E)->endpoint_next_seq_to_send < \
+        ((E)->endpoint_ack_seq_rcvd + WINDOW_SIZE))
+
+
 typedef struct ompi_btl_usnic_addr_t {
-    uint32_t qp_num;
+    uint32_t data_qp_num;
+    uint32_t cmd_qp_num;
     union ibv_gid gid;
     uint32_t ipv4_addr;
     uint32_t cidrmask;
@@ -44,29 +60,30 @@ typedef struct ompi_btl_usnic_addr_t {
     int mtu;
 } ompi_btl_usnic_addr_t;
 
+struct ompi_btl_usnic_send_segment_t;
 
 /*
- * Pending frags that we store in send/receive windows
+ * This is a descriptor for an incoming fragment that is broken
+ * into chunks.  When the first reference to this frag_id is seen,
+ * memory is allocated for it.  When the last byte arrives, the assembled
+ * fragment is passed to the PML.
+ *
+ * The endpoint structure has space for WINDOW_SIZE/2 simultaneous fragments.
+ * This is the largest number of fragments that can possibly be in-flight
+ * to us from a particular endpoint because eash chunked fragment will occupy
+ * at least two segments, and only WINDOW_SIZE segments can be in flight.
+ * OK, so there is an extremely pathological case where we could see 
+ * (WINDOW_SIZE/2)+1 "in flight" at once, but just dropping that last one
+ * and waiting for retrans is just fine in this hypothetical hyper-pathological
+ * case, which is what we'll do.
  */
-typedef struct ompi_btl_usnic_pending_frag_t {
-    struct ompi_btl_usnic_frag_t *frag;
-    int hotel_room;
-    /* JMS could space optimize this -- perhaps remove the bool (and
-       just check for frag==NULL)?  Probably not a big deal because
-       it's going to be 64 bit aligned, but... */
-    bool occupied;
-} ompi_btl_usnic_pending_frag_t;
-
-/*
- * Item for the list of endpoints that received something (and
- * therefore need an ACK)
- */
-struct mca_btl_base_endpoint_t;
-typedef struct {
-    opal_list_item_t super;
-    struct mca_btl_base_endpoint_t *endpoint;
-    bool enqueued;
-} ompi_btl_usnic_endpoint_list_item_t;
+#define MAX_ACTIVE_FRAGS (WINDOW_SIZE/2)
+typedef struct ompi_btl_usnic_rx_frag_info_t {
+    uint32_t    rfi_frag_id;    /* ID for this fragment */
+    uint32_t    rfi_frag_size;  /* bytes in this fragment */
+    uint32_t    rfi_bytes_left; /* bytes remaining to RX in fragment */
+    char       *rfi_data;       /* pointer to assembly area */
+} ompi_btl_usnic_rx_frag_info_t;
 
 /**
  * An abstraction that represents a connection to a remote process.
@@ -82,10 +99,9 @@ typedef struct mca_btl_base_endpoint_t {
     struct ompi_btl_usnic_module_t *endpoint_module;
     /** Usnic proc structure corresponding to endpoint */
     struct ompi_btl_usnic_proc_t   *endpoint_proc;
-#if RELIABILITY
-    /** List item pointing to this endpoint */
-    ompi_btl_usnic_endpoint_list_item_t endpoint_li;
-#endif
+
+    /** List item for linking into "need ack" */
+    opal_list_item_t endpoint_ack_li;
 
     /** Remote address information */
     ompi_btl_usnic_addr_t          endpoint_remote_addr;
@@ -93,27 +109,41 @@ typedef struct mca_btl_base_endpoint_t {
     /** Remote address handle */
     struct ibv_ah*                   endpoint_remote_ah;
 
-#if RELIABILITY
+    /** Send-related data */
+    bool                             endpoint_ready_to_send;
+    opal_list_t                      endpoint_frag_send_queue;
+    int32_t                          endpoint_send_credits;
+    uint32_t                         endpoint_next_frag_id;
+
+    /** Receive-related data */
+    struct ompi_btl_usnic_rx_frag_info_t *endpoint_rx_frag_info;
+
     /** OPAL hotel to track outstanding stends */
     opal_hotel_t                     endpoint_hotel;
 
     /** Sliding window parameters for this peer */
     /* Values for the current proc to send to this endpoint on the
        peer proc */
-    ompi_btl_usnic_seq_t           endpoint_next_seq_to_send; /* n_t */
-    ompi_btl_usnic_seq_t           endpoint_ack_seq_rcvd; /* n_a */
+    ompi_btl_usnic_seq_t             endpoint_next_seq_to_send; /* n_t */
+    ompi_btl_usnic_seq_t             endpoint_ack_seq_rcvd; /* n_a */
 
-    ompi_btl_usnic_pending_frag_t *endpoint_sent_frags;
+    struct ompi_btl_usnic_send_segment_t    *endpoint_sent_segs[WINDOW_SIZE];
     uint32_t                         endpoint_sfstart;
 
     /* Values for the current proc to receive from this endpoint on
        the peer proc */
-    ompi_btl_usnic_seq_t           endpoint_next_contig_seq_to_recv; /* n_r */
-    ompi_btl_usnic_seq_t           endpoint_highest_seq_rcvd; /* n_s */
+    bool                            endpoint_ack_needed;
 
-    ompi_btl_usnic_pending_frag_t *endpoint_rcvd_frags;
-    uint32_t                         endpoint_rfstart;
-#endif
+    /* When we receive a packet that needs an ACK, set this
+     * to delay the ACK to allow for piggybacking
+     */
+    uint64_t                        endpoint_acktime;
+
+    ompi_btl_usnic_seq_t            endpoint_next_contig_seq_to_recv; /* n_r */
+    ompi_btl_usnic_seq_t            endpoint_highest_seq_rcvd; /* n_s */
+
+    bool                            endpoint_rcvd_segs[WINDOW_SIZE];
+    uint32_t                        endpoint_rfstart;
 
     /** Do we need to convert headers to network byte order? */
     bool                             endpoint_nbo;
@@ -122,8 +152,12 @@ typedef struct mca_btl_base_endpoint_t {
 typedef mca_btl_base_endpoint_t ompi_btl_usnic_endpoint_t;
 OBJ_CLASS_DECLARATION(ompi_btl_usnic_endpoint_t);
 
-int ompi_btl_usnic_endpoint_post_send(struct ompi_btl_usnic_module_t* ud_btl,
-                                       struct ompi_btl_usnic_frag_t * frag);
+
+/*
+ * Post a send to the verbs work queue
+ */
+void ompi_btl_usnic_endpoint_send_segment(struct ompi_btl_usnic_module_t *module,
+                                          struct ompi_btl_usnic_send_segment_t *sseg);
 
 END_C_DECLS
 #endif

@@ -38,10 +38,29 @@
 #include "ompi/mca/btl/base/base.h"
 #include "ompi/mca/mpool/rdma/mpool_rdma.h"
 
+static inline uint64_t
+get_nsec(void)
+{
+    static unsigned long isec, insec;
+    struct timespec ts;
+    uint64_t ns;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    if (insec == 0) {
+        isec = ts.tv_sec;
+        insec = ts.tv_nsec;
+    }
+    ns = (ts.tv_sec - isec) * 1000000000LL + (long)(ts.tv_nsec - insec);
+    return ns;
+}
+
+#define container_of(ptr, type, member) ( \
+        (type *)( ((char *)(ptr)) - offsetof(type,member) ))
+
 /* Set to 1 to turn out a LOT of debugging ouput */
+#define MSGDEBUG2 (MSGDEBUG1||0)     /* temp */
+#define MSGDEBUG1 (MSGDEBUG||0)     /* temp */
 #define MSGDEBUG 0
-/* Set to 1 to run off reliability */
-#define RELIABILITY 1
 /* Set to 1 to get frag history */
 #define HISTORY 0
 /* Set to >0 to randomly drop received frags.  The higher the number,
@@ -54,8 +73,6 @@
    requed to be sent later).  The higher the number, the more frequent
    the failed-to-resend-frag. */
 #define WANT_FAIL_TO_RESEND_FRAG 0
-
-#include "btl_usnic_endpoint.h"
 
 BEGIN_C_DECLS
 
@@ -76,15 +93,6 @@ BEGIN_C_DECLS
 #define FAKE_FAIL_TO_RESEND_FRAG (rand() < WANT_FAIL_TO_RESEND_FRAG)
 #else
 #define FAKE_FAIL_TO_RESEND_FRAG 0
-#endif
-
-/*
- * Have the window size as a compile-time constant that is a power of
- * two so that we can take advantage of fast bit operations.
- */
-#if RELIABILITY
-#define WINDOW_SIZE 4096
-#define WINDOW_SIZE_MOD(a) (((a) & (WINDOW_SIZE - 1)))
 #endif
 
 
@@ -134,124 +142,20 @@ typedef struct ompi_btl_usnic_component_t {
     /** max completion queue entries per module */
     int32_t cq_num;
 
-#if RELIABILITY
     /** retrans characteristics */
     int retrans_timeout;
-#endif
 } ompi_btl_usnic_component_t;
 
 OMPI_MODULE_DECLSPEC extern ompi_btl_usnic_component_t mca_btl_usnic_component;
 
 typedef mca_btl_base_recv_reg_t ompi_btl_usnic_recv_reg_t;
 
-
 /**
- * UD verbs BTL interface
+ * Size for sequence numbers (just to ensure we use the same size
+ * everywhere)
  */
-typedef struct ompi_btl_usnic_module_t {
-    mca_btl_base_module_t super;
-
-    mca_btl_base_module_error_cb_fn_t pml_error_callback;
-
-    uint8_t port_num;
-    struct ibv_device *device;
-    struct ibv_context *device_context;
-    struct event device_async_event;
-    bool device_async_event_active;
-    struct ibv_pd *pd;
-    struct ibv_cq *cq;
-
-    /* Information about the IP interface corresponding to this USNIC
-       interface */
-    char if_name[64];
-    uint32_t if_ipv4_addr;
-    uint32_t if_cidrmask;
-    uint8_t if_mac[6];
-    int if_mtu;
-
-    /** desired send, receive, and completion queue entries (from MCA
-        params; cached here on the component because the MCA param
-        might == 0, which means "max supported on that device") */
-    int sd_num;
-    int rd_num;
-    int cq_num;
-
-    /** Hash table to keep track of senders */
-    opal_hash_table_t senders;
-
-    /** local address information */
-    struct ompi_btl_usnic_addr_t addr;
-
-    /** send fragments & buffers */
-    ompi_free_list_t send_frags;
-
-    /** receive fragments & buffers */
-    ompi_free_list_t recv_frags;
-
-#if RELIABILITY
-    /** list of send frags that are waiting to be resent (they
-        previously deferred because of lack of resources) */
-    opal_list_t pending_resend_frags;
-
-    /** ack frags */
-    ompi_free_list_t ack_frags;
-
-    /** list of endpoints to which we need to send ACKs */
-    opal_list_t endpoints_that_need_acks;
-#endif
-
-    /** available send WQ entries */
-    int32_t sd_wqe;
-
-    /** queue pair */
-    struct ibv_qp* qp;
-    uint32_t qp_max_inline;
-
-    /* Debugging statistics */
-    bool final_stats;
-    uint64_t stats_report_num;
-
-    uint64_t num_total_sends;
-    uint64_t num_resends;
-    uint64_t num_frag_sends;
-    uint64_t num_ack_sends;
-
-    uint64_t num_total_recvs;
-    uint64_t num_unk_recvs;
-    uint64_t num_dup_recvs;
-    uint64_t num_oow_low_recvs;
-    uint64_t num_oow_high_recvs;
-    uint64_t num_frag_recvs;
-    uint64_t num_ack_recvs;
-    uint64_t num_recv_reposts;
-
-    uint64_t num_deferred_sends_no_wqe;
-    uint64_t num_deferred_sends_outside_window;
-    uint64_t num_deferred_sends_hotel_full;
-
-    uint64_t max_sent_window_size;
-    uint64_t max_rcvd_window_size;
-
-    uint64_t pml_module_sends;
-    uint64_t pml_module_sends_deferred;
-    uint64_t pml_send_callbacks;
-
-    ompi_btl_usnic_endpoint_t **all_endpoints;
-    int num_endpoints;
-
-    opal_event_t stats_timer_event;
-    struct timeval stats_timeout;
-} ompi_btl_usnic_module_t;
-
-struct ompi_btl_usnic_frag_t;
-extern ompi_btl_usnic_module_t ompi_btl_usnic_module_template;
-
-
-/*
- * Initialize a module
- */
-int ompi_btl_usnic_module_init(ompi_btl_usnic_module_t* module);
-
+typedef uint64_t ompi_btl_usnic_seq_t;
+#define UDSEQ "lu"
 
 /**
  * Register the usnic BTL MCA params

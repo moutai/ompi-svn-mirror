@@ -26,301 +26,253 @@
 #include "ompi/proc/proc.h"
 
 #include "btl_usnic.h"
+#include "btl_usnic_endpoint.h"
+#include "btl_usnic_module.h"
 #include "btl_usnic_frag.h"
 #include "btl_usnic_ack.h"
 
-
-static void ompi_btl_usnic_frag_reset_states(ompi_btl_usnic_frag_t *frag)
+static void
+common_send_seg_helper(
+    ompi_btl_usnic_send_segment_t *seg)
 {
-    frag->send_wr_posted = 0;
-    frag->state_flags = 0;
+    ompi_btl_usnic_segment_t *bseg;
 
-#if HISTORY
-    {
-        int i;
-        for (i = 0; i < NUM_FRAG_HISTORY; ++i) {
-            memset(&(frag->history), 0, sizeof(frag->history[i]));
-        }
-        frag->history_start = 0;
-        frag->history_next = 0;
-    }
+    bseg = &seg->ss_base;
+
+    bseg->us_btl_header = (ompi_btl_usnic_btl_header_t *)bseg->us_list.ptr;
+    bseg->us_btl_header->sender = mca_btl_usnic_component.my_hashed_orte_name;
+
+    /* build verbs work request descriptor */
+    seg->ss_send_desc.wr_id = (unsigned long) seg;
+    seg->ss_send_desc.sg_list = &bseg->us_sg_entry;
+    seg->ss_send_desc.num_sge = 1;
+    seg->ss_send_desc.opcode = IBV_WR_SEND;
+    seg->ss_send_desc.next = NULL;
+
+    /* JMS Put inline back when it is tested more */
+#if 0
+    seg->ss_send_desc.send_flags = IBV_SEND_SIGNALED | IBV_SEND_INLINE;
+#else
+    seg->ss_send_desc.send_flags = IBV_SEND_SIGNALED;
 #endif
+
+    /* verbs SG entry, len will be filled in just before send */
+    bseg->us_sg_entry.addr = (unsigned long) bseg->us_btl_header;
+}
+
+static void
+chunk_seg_constructor(
+    ompi_btl_usnic_send_segment_t *seg)
+{
+    ompi_btl_usnic_segment_t *bseg;
+
+    bseg = &seg->ss_base;
+    bseg->us_type = OMPI_BTL_USNIC_SEG_CHUNK;
+
+    /* some more common initializaiton */
+    common_send_seg_helper(seg);
+
+    /* payload starts next byte beyond BTL chunk header */
+    bseg->us_payload.raw = (uint8_t *)(bseg->us_btl_chunk_header + 1);
+
+    bseg->us_btl_header->payload_type = OMPI_BTL_USNIC_PAYLOAD_TYPE_CHUNK;
+}
+
+static void
+frag_seg_constructor(
+    ompi_btl_usnic_send_segment_t *seg)
+{
+    ompi_btl_usnic_segment_t *bseg;
+
+    bseg = &seg->ss_base;
+    bseg->us_type = OMPI_BTL_USNIC_SEG_FRAG;
+
+    /* some more common initializaiton */
+    common_send_seg_helper(seg);
+
+    /* payload starts next byte beyond BTL header */
+    bseg->us_payload.raw = (uint8_t *)(bseg->us_btl_header + 1);
+
+    bseg->us_btl_header->payload_type = OMPI_BTL_USNIC_PAYLOAD_TYPE_FRAG;
+}
+
+static void
+ack_seg_constructor(
+    ompi_btl_usnic_send_segment_t *ack)
+{
+    ompi_btl_usnic_segment_t *bseg;
+
+    bseg = &ack->ss_base;
+    bseg->us_type = OMPI_BTL_USNIC_SEG_ACK;
+
+    /* some more common initializaiton */
+    common_send_seg_helper(ack);
+
+    /* ACK value embedded in BTL header */
+    bseg->us_btl_header->payload_type = OMPI_BTL_USNIC_PAYLOAD_TYPE_ACK;
+    bseg->us_btl_header->payload_len = 0;
+
+    bseg->us_sg_entry.length = sizeof(bseg->us_btl_header);
 }
 
 
-static void frag_common_constructor(ompi_btl_usnic_frag_t *frag)
+static void
+recv_seg_constructor(
+    ompi_btl_usnic_recv_segment_t *seg)
 {
+    ompi_btl_usnic_segment_t *bseg;
+
+    bseg = &seg->rs_base;
+    bseg->us_type = OMPI_BTL_USNIC_SEG_RECV;
+
+    /* on receive, BTL header starts after protocol header */
+    seg->rs_protocol_header = bseg->us_list.ptr;
+    bseg->us_btl_header =
+        (ompi_btl_usnic_btl_header_t *) (seg->rs_protocol_header + 1);
+
+    /* initialize verbs work request */
+    seg->rs_recv_desc.wr_id = (unsigned long) seg;
+    seg->rs_recv_desc.sg_list = &bseg->us_sg_entry;
+    seg->rs_recv_desc.num_sge = 1;
+
+    /* verbs SG entry, len filled in by caller b/c we don't have value */
+    bseg->us_sg_entry.addr = (unsigned long) seg->rs_protocol_header;
+
+    /* initialize mca descriptor */
+    seg->rs_desc.des_dst = &seg->rs_segment;
+    seg->rs_desc.des_dst_cnt = 1;
+    seg->rs_desc.des_src = NULL;
+    seg->rs_desc.des_src_cnt = 0;
+
+    /* PML want to see its header
+     * This pointer is only correct for incoming segments of type
+     * OMPI_BTL_USNIC_PAYLOAD_TYPE_FRAG, but that's the only time
+     * we ever give segment directly to PML, so its OK
+     */
+    bseg->us_payload.pml_header = (mca_btl_base_header_t *)
+        (bseg->us_btl_header+1);
+    seg->rs_segment.seg_addr.pval = bseg->us_payload.pml_header;
+}
+
+static void
+send_frag_constructor(ompi_btl_usnic_send_frag_t *frag)
+{
+    mca_btl_base_descriptor_t *desc;
 #if 0
     /* JMS Not needed for USNIC UD */
     frag->ud_reg = (ompi_btl_usnic_reg_t*)frag->base.super.registration;
     frag->sg_entry.lkey = frag->ud_reg->mr->lkey;
 #endif
-    frag->base.des_flags = 0;
-    frag->base.order = MCA_BTL_NO_ORDER;
-    ompi_btl_usnic_frag_reset_states(frag);
+
+    /* Fill in source descriptor */
+    desc = &frag->sf_base.uf_base;
+    desc->des_src = &frag->sf_base.uf_seg;
+    desc->des_src_cnt = 1;
+    desc->des_dst = NULL;
+    desc->des_dst_cnt = 0;
+
+    desc->order = MCA_BTL_NO_ORDER;
+    desc->des_flags = 0;
 }
 
 
-static void send_frag_constructor(ompi_btl_usnic_frag_t *frag)
+static void
+small_send_frag_constructor(ompi_btl_usnic_small_send_frag_t *frag)
 {
-    frag_common_constructor(frag);
+    ompi_btl_usnic_frag_segment_t *fseg;
 
-    frag->type = OMPI_BTL_USNIC_FRAG_SEND;
-    frag->base.des_src = &frag->segment;
-    frag->base.des_src_cnt = 1;
-    frag->base.des_dst = NULL;
-    frag->base.des_dst_cnt = 0;
+    send_frag_constructor(&frag->ssf_base);
 
-    frag->protocol_header = frag->base.super.ptr;
-    frag->btl_header = (ompi_btl_usnic_btl_header_t *) frag->base.super.ptr;
-    frag->btl_header->sender = 
-        mca_btl_usnic_component.my_hashed_orte_name;
+    /* construct the embedded segment */
+    fseg = &frag->ssf_segment;
+    fseg->ss_base.us_list.ptr = frag->ssf_base.sf_base.uf_base.super.ptr;
+    frag_seg_constructor(fseg);
 
-    frag->payload.raw = (uint8_t *) (frag->btl_header + 1);
+    /* set us as parent in dedicated frag */
+    fseg->ss_parent_frag = (struct ompi_btl_usnic_send_frag_t *)frag;
 
-    /* This is what the PML sees */
-    frag->segment.seg_addr.pval = frag->payload.raw;
-    /* This is what the underlying transport (verbs) sees */
-    frag->sg_entry.addr = (unsigned long) frag->protocol_header;
+    frag->ssf_base.sf_base.uf_type = OMPI_BTL_USNIC_FRAG_SMALL_SEND;
 
-    frag->wr_desc.sr_desc.wr_id = (unsigned long) frag;
-    frag->wr_desc.sr_desc.sg_list = &frag->sg_entry;
-    frag->wr_desc.sr_desc.num_sge = 1;
-    frag->wr_desc.sr_desc.opcode = IBV_WR_SEND;
-    /* JMS Put inline back when it is tested more */
-#if 0
-    frag->wr_desc.sr_desc.send_flags = IBV_SEND_SIGNALED | IBV_SEND_INLINE;
-#else
-    frag->wr_desc.sr_desc.send_flags = IBV_SEND_SIGNALED;
-#endif
-    frag->wr_desc.sr_desc.next = NULL;
+    /* save data pointer for PML */
+    frag->ssf_base.sf_base.uf_seg.seg_addr.pval = fseg->ss_base.us_payload.raw;
 }
 
-
-#if RELIABILITY
-static void ack_frag_constructor(ompi_btl_usnic_frag_t *frag)
+static void
+large_send_frag_constructor(ompi_btl_usnic_large_send_frag_t *frag)
 {
-    send_frag_constructor(frag);
+    send_frag_constructor(&frag->lsf_base);
 
-    frag->type = OMPI_BTL_USNIC_FRAG_ACK;
+    frag->lsf_base.sf_base.uf_type = OMPI_BTL_USNIC_FRAG_LARGE_SEND;
+
 }
-#endif
 
-static void recv_frag_constructor(ompi_btl_usnic_frag_t *frag)
+static void
+put_dest_frag_constructor(ompi_btl_usnic_put_dest_frag_t *pfrag)
 {
-    frag_common_constructor(frag);
+    pfrag->uf_type = OMPI_BTL_USNIC_FRAG_PUT_DEST;
 
-    frag->type = OMPI_BTL_USNIC_FRAG_RECV;
-    frag->base.des_dst = &frag->segment;
-    frag->base.des_dst_cnt = 1;
-    frag->base.des_src = NULL;
-    frag->base.des_src_cnt = 0;
-
-    frag->protocol_header = frag->base.super.ptr;
-    /* UD messages have a 40-byte global resource header (GRH) in
-       received datagrams.  The BTL header is beyond this protocol
-       header. */
-    frag->btl_header = 
-        (ompi_btl_usnic_btl_header_t *) (frag->protocol_header + 1);
-    frag->payload.raw = (uint8_t *) (frag->btl_header + 1);
-
-    /* This is what the PML sees */
-    frag->segment.seg_addr.pval = frag->payload.raw;
-    /* This is what the underlying transport sees (verbs) */
-    frag->sg_entry.addr = (uintptr_t)frag->base.super.ptr;
-
-    /* JMS Don't want to pull the eager limit from the template, but
-       frag->endpoint is not yet initialized, so how do I pull it from
-       the module? */
-    frag->segment.seg_len = 
-	    ompi_btl_usnic_module_template.super.btl_eager_limit;
-    frag->sg_entry.length = 
-	    ompi_btl_usnic_module_template.super.btl_eager_limit +
-	    sizeof(ompi_btl_usnic_protocol_header_t) +
-	    sizeof(ompi_btl_usnic_btl_header_t);
-
-    frag->wr_desc.rd_desc.wr_id = (unsigned long)frag;
-    frag->wr_desc.rd_desc.sg_list = &frag->sg_entry;
-    frag->wr_desc.rd_desc.num_sge = 1;
-    frag->wr_desc.rd_desc.next = NULL;
+    /* point dest to our utility segment */
+    pfrag->uf_base.des_dst = &pfrag->uf_seg;
+    pfrag->uf_base.des_dst_cnt = 1;
 }
 
+OBJ_CLASS_INSTANCE(ompi_btl_usnic_segment_t,
+                   ompi_free_list_item_t,
+                   NULL,
+                   NULL);
 
+OBJ_CLASS_INSTANCE(ompi_btl_usnic_frag_segment_t,
+                   ompi_btl_usnic_segment_t,
+                   frag_seg_constructor,
+                   NULL);
+
+OBJ_CLASS_INSTANCE(ompi_btl_usnic_chunk_segment_t,
+                   ompi_btl_usnic_segment_t,
+                   chunk_seg_constructor,
+                   NULL);
+
+OBJ_CLASS_INSTANCE(ompi_btl_usnic_recv_segment_t,
+                   ompi_btl_usnic_segment_t,
+                   recv_seg_constructor,
+                   NULL);
+
+OBJ_CLASS_INSTANCE(ompi_btl_usnic_ack_segment_t,
+                   ompi_btl_usnic_segment_t,
+                   ack_seg_constructor,
+                   NULL);
+
+/*
+ * Fragments
+ */
 OBJ_CLASS_INSTANCE(ompi_btl_usnic_frag_t,
                    mca_btl_base_descriptor_t,
                    NULL,
                    NULL);
 
 OBJ_CLASS_INSTANCE(ompi_btl_usnic_send_frag_t,
-                   mca_btl_base_descriptor_t,
-                   send_frag_constructor,
+                   ompi_btl_usnic_frag_t,
+                   NULL,
                    NULL);
 
-#if RELIABILITY
-OBJ_CLASS_INSTANCE(ompi_btl_usnic_ack_frag_t,
-                   mca_btl_base_descriptor_t,
-                   ack_frag_constructor,
+OBJ_CLASS_INSTANCE(ompi_btl_usnic_large_send_frag_t,
+                   ompi_btl_usnic_send_frag_t,
+                   large_send_frag_constructor,
                    NULL);
-#endif
 
-OBJ_CLASS_INSTANCE(ompi_btl_usnic_recv_frag_t,
-                   mca_btl_base_descriptor_t,
-                   recv_frag_constructor,
+OBJ_CLASS_INSTANCE(ompi_btl_usnic_small_send_frag_t,
+                   ompi_btl_usnic_send_frag_t,
+                   small_send_frag_constructor,
                    NULL);
+
+OBJ_CLASS_INSTANCE(ompi_btl_usnic_put_dest_frag_t,
+                   ompi_btl_usnic_frag_t,
+                   put_dest_frag_constructor,
+                   NULL);
+
 
 /*******************************************************************************/
 
-ompi_btl_usnic_frag_t *
-ompi_btl_usnic_frag_send_alloc(ompi_btl_usnic_module_t *module)
-{
-    int rc;
-    ompi_free_list_item_t *item;
-    ompi_btl_usnic_frag_t *frag;
-
-    OMPI_FREE_LIST_GET(&(module->send_frags), item, rc);
-    if (OPAL_LIKELY(OMPI_SUCCESS == rc)) {
-        frag = (ompi_btl_usnic_frag_t*) item;
-
-        assert(frag);
-        assert(OMPI_BTL_USNIC_FRAG_SEND == frag->type);
-        assert(!FRAG_STATE_GET(frag, FRAG_ALLOCED));
-
-        FRAG_STATE_SET(frag, FRAG_ALLOCED);
-        return frag;
-    }
-
-    return NULL;
-}
-
-
-/* 
- * A send frag can be returned to the freelist when all of the
- * following are true:
- *
- * 1. PML is freeing it (via module.free())
- * 2. Or all of these:
- *    a) it finishes its send
- *    b) it has been ACKed
- *    c) it is owned by the BTL
- *    d) it is not queued up for a (re)send
- *
- * Note that because of sliding windows and ganged ACKs, it is
- * possible to have been ACKed already before the frag's send
- * completes (e.g., if an ACK comes in super fast, and/or if the
- * frag's pending completion is for a resent, and the ACK is for a
- * prior send/resend of this frag). 
- */
-bool ompi_btl_usnic_frag_send_ok_to_return(ompi_btl_usnic_module_t *module,
-                                             ompi_btl_usnic_frag_t *frag)
-{
-    assert(frag);
-    assert(OMPI_BTL_USNIC_FRAG_SEND == frag->type);
-
-    if (OPAL_LIKELY(frag->base.des_flags & MCA_BTL_DES_FLAGS_BTL_OWNERSHIP) &&
-        FRAG_STATE_GET(frag, FRAG_SEND_ACKED) && 
-        !FRAG_STATE_GET(frag, FRAG_SEND_ENQUEUED) &&
-        0 == frag->send_wr_posted) {
-        return true;
-    }
-
-    return false;
-}
-
-/* JMS This function should be inlined */
-void ompi_btl_usnic_frag_send_return(ompi_btl_usnic_module_t *module,
-                                     ompi_btl_usnic_frag_t *frag)
-{
-    assert(FRAG_STATE_GET(frag, FRAG_ALLOCED));
-    assert(OMPI_BTL_USNIC_FRAG_SEND == frag->type);
-
-    ompi_btl_usnic_frag_reset_states(frag);
-    OMPI_FREE_LIST_RETURN(&(module->send_frags), &(frag->base.super));
-}
-
-/* JMS This function should be inlined */
-void ompi_btl_usnic_frag_send_return_cond(struct ompi_btl_usnic_module_t *module,
-                                            ompi_btl_usnic_frag_t *frag)
-{
-    assert(FRAG_STATE_GET(frag, FRAG_ALLOCED));
-    assert(OMPI_BTL_USNIC_FRAG_SEND == frag->type);
-
-    if (ompi_btl_usnic_frag_send_ok_to_return(module, frag)) {
-        if (!FRAG_STATE_GET(frag, FRAG_PML_CALLED_BACK)) {
-            opal_output(0, "=============== PML wasn't called back!  frag %p",
-                        (void*) frag);
-            ompi_btl_usnic_frag_dump(frag);
-        }
-
-        assert(FRAG_STATE_GET(frag, FRAG_SEND_ACKED));
-        assert(0 == frag->send_wr_posted);
-        assert(!FRAG_STATE_GET(frag, FRAG_SEND_ENQUEUED));
-        assert(FRAG_STATE_GET(frag, FRAG_PML_CALLED_BACK));
-        ompi_btl_usnic_frag_send_return(module, frag);
-    }
-}
-
-
-#if RELIABILITY
-/* JMS This function should be inlined */
-ompi_btl_usnic_frag_t *
-ompi_btl_usnic_frag_ack_alloc(ompi_btl_usnic_module_t *module)
-{
-    int rc;
-    ompi_free_list_item_t *item;
-    ompi_btl_usnic_frag_t *ack;
-
-    OMPI_FREE_LIST_GET(&(module->ack_frags), item, rc);
-    if (OPAL_LIKELY(OMPI_SUCCESS == rc)) {
-        ack = (ompi_btl_usnic_frag_t*) item;
-
-        assert(ack);
-        assert(OMPI_BTL_USNIC_FRAG_ACK == ack->type);
-        assert(!FRAG_STATE_GET(ack, FRAG_ALLOCED));
-
-        ompi_btl_usnic_frag_reset_states(ack);
-        FRAG_STATE_SET(ack, FRAG_ALLOCED);
-        return ack;
-    }
-    return NULL;
-}
-
-
-/* JMS This function should be inlined */
-void ompi_btl_usnic_frag_ack_return(ompi_btl_usnic_module_t *module,
-                                      ompi_btl_usnic_frag_t *ack)
-{
-    assert(ack);
-    assert(FRAG_STATE_GET(ack, FRAG_ALLOCED));
-    assert(OMPI_BTL_USNIC_FRAG_ACK == ack->type);
-
-    FRAG_STATE_CLR(ack, FRAG_ALLOCED);
-    OMPI_FREE_LIST_RETURN(&(module->ack_frags), &(ack->base.super));
-}
-
-
-/*
- * Progress the pending resends queue.  This function is called from
- * two places:
- *
- * component_progress(): 
- */
-void 
-ompi_btl_usnic_frag_progress_pending_resends(ompi_btl_usnic_module_t *module)
-{
-    if (OPAL_UNLIKELY(!opal_list_is_empty(&module->pending_resend_frags)) && 
-        module->sd_wqe > 0) {
-        ompi_btl_usnic_frag_t *frag;
-        frag = (ompi_btl_usnic_frag_t*) 
-            opal_list_remove_first(&module->pending_resend_frags);
-        FRAG_STATE_CLR(frag, FRAG_SEND_ENQUEUED);
-        ompi_btl_usnic_ack_timeout_part2(module, frag, 0);
-    }
-}
-#endif
-
-/*******************************************************************************/
-
-#if RELIABILITY
+#if MSGDEBUG
 static void dump_ack_frag(ompi_btl_usnic_frag_t* frag)
 {
     char out[256];
@@ -333,7 +285,6 @@ static void dump_ack_frag(ompi_btl_usnic_frag_t* frag)
              FRAG_STATE_ISSET(frag, FRAG_ALLOCED));
     opal_output(0, out);
 }
-#endif
 
 static void dump_send_frag(ompi_btl_usnic_frag_t* frag)
 {
@@ -350,12 +301,8 @@ static void dump_send_frag(ompi_btl_usnic_frag_t* frag)
              FRAG_STATE_ISSET(frag, FRAG_SEND_ENQUEUED),
              FRAG_STATE_ISSET(frag, FRAG_PML_CALLED_BACK),
              FRAG_STATE_ISSET(frag, FRAG_IN_HOTEL),
-#if RELIABILITY
              FRAG_STATE_ISSET(frag, FRAG_ALLOCED) ?
                  frag->btl_header->seq : (ompi_btl_usnic_seq_t) ~0
-#else
-             (uint64_t) 0
-#endif
              );
     opal_output(0, out);
 }
@@ -377,11 +324,9 @@ static void dump_recv_frag(ompi_btl_usnic_frag_t* frag)
 void ompi_btl_usnic_frag_dump(ompi_btl_usnic_frag_t *frag)
 {
     switch(frag->type) {
-#if RELIABILITY
     case OMPI_BTL_USNIC_FRAG_ACK:
         dump_ack_frag(frag);
         break;
-#endif
 
     case OMPI_BTL_USNIC_FRAG_SEND:
         dump_send_frag(frag);
@@ -396,6 +341,7 @@ void ompi_btl_usnic_frag_dump(ompi_btl_usnic_frag_t *frag)
         break;
     }
 }
+#endif
 
 /*******************************************************************************/
 

@@ -32,43 +32,29 @@
 
 #include "btl_usnic.h"
 #include "btl_usnic_endpoint.h"
+#include "btl_usnic_module.h"
 #include "btl_usnic_frag.h"
 #include "btl_usnic_proc.h"
 #include "btl_usnic_util.h"
 #include "btl_usnic_ack.h"
 #include "btl_usnic_send.h"
 
-
 /*
- * Post a send to the work queue
+ * Post a send to the verbs work queue
  */
-int ompi_btl_usnic_endpoint_post_send(ompi_btl_usnic_module_t* module,
-                                        ompi_btl_usnic_frag_t* frag)
+void
+ompi_btl_usnic_endpoint_send_segment(
+    ompi_btl_usnic_module_t *module,
+    ompi_btl_usnic_send_segment_t *sseg)
 {
     int ret;
-    struct ibv_send_wr* bad_wr;
-    struct ibv_send_wr* wr = &frag->wr_desc.sr_desc;
-    ompi_btl_usnic_endpoint_t* endpoint = frag->endpoint;
-#if RELIABILITY
-    ompi_btl_usnic_pending_frag_t *sent_frag;
-    int room;
+    ompi_btl_usnic_send_frag_t *frag;
+    ompi_btl_usnic_endpoint_t *endpoint;
     uint16_t sfi;
-#endif
 
-    frag->sg_entry.length = 
-        sizeof(ompi_btl_usnic_btl_header_t) +
-        frag->segment.seg_len;
-    wr->send_flags = IBV_SEND_SIGNALED;
+    frag = sseg->ss_parent_frag;
+    endpoint = frag->sf_endpoint;
 
-    /* Do we have a send descriptor available? */
-    if (OPAL_UNLIKELY(0 == module->sd_wqe)) {
-        /* Stats */
-        ++module->num_deferred_sends_no_wqe;
-        goto queue_send;
-    }
-    --module->sd_wqe;
-
-#if RELIABILITY
     /* Do we have room in the endpoint's sender window?
 
        Sender window:
@@ -92,100 +78,72 @@ int ompi_btl_usnic_endpoint_post_send(ompi_btl_usnic_module_t* module,
     */
     assert(endpoint->endpoint_next_seq_to_send > 
            endpoint->endpoint_ack_seq_rcvd);
-    if (OPAL_UNLIKELY(endpoint->endpoint_next_seq_to_send >
-                      endpoint->endpoint_ack_seq_rcvd + WINDOW_SIZE)) {
-        ++module->sd_wqe;
+    if (OPAL_UNLIKELY(!WINDOW_OPEN(endpoint))) {
         /* Stats */
-        ++module->num_deferred_sends_outside_window;
-        goto queue_send;
+        abort();        /* checked by caller */
     }
-    frag->btl_header->seq = endpoint->endpoint_next_seq_to_send++;
+
+    /* Assign sequence number and increment */
+    sseg->ss_base.us_btl_header->seq = endpoint->endpoint_next_seq_to_send++;
+
+    /* Fill in remote address to indicate PUT or not */
+    sseg->ss_base.us_btl_header->put_addr = frag->sf_dest_addr;
 
     /* Track this header by stashing in an array on the endpoint that
        is the same length as the sender's window (i.e., WINDOW_SIZE).
-       To find a unique slot in this array, use (seq %
-       WINDOW_SIZE). */
-    sfi = WINDOW_SIZE_MOD(frag->btl_header->seq);
-    sent_frag = &(endpoint->endpoint_sent_frags[sfi]);
+       To find a unique slot in this array, use (seq % WINDOW_SIZE).
+     */
+    sfi = WINDOW_SIZE_MOD(sseg->ss_base.us_btl_header->seq);
+    endpoint->endpoint_sent_segs[sfi] = sseg;
+    sseg->ss_ack_pending = true;
 
-    /* If we have room in the sender's window, we also have room in
-       endpoint hotel */
-    ret = opal_hotel_checkin(&endpoint->endpoint_hotel, frag, &room);
-    if (OPAL_UNLIKELY(OPAL_SUCCESS != ret)) {
-        ++module->sd_wqe;
-        /* Hotel is full; this shouldn't happen! */
-        BTL_ERROR(("=== Hotel is full on endpoint send, module %p, endpoint %p, frag %p", 
-                   (void*) module,
-                   (void*) endpoint,
-                   (void*) frag));
-        ++module->num_deferred_sends_hotel_full;
-        goto queue_send;
-    }
-    FRAG_STATE_SET(frag, FRAG_IN_HOTEL);
+    /* piggy-back an ACK if needed */
+    ompi_btl_usnic_piggyback_ack(endpoint, sseg);
 
-    /* Save this fragment and meta information about the fragment in
-       the sent window so that we can find it when it it ACKed. */
-    sent_frag->frag = frag;
-    sent_frag->hotel_room = room;
-    sent_frag->occupied = true;
-#if MSGDEBUG
-    /* JMS */
-    opal_output(0, "Sent frag table %p, index %d, seq %lu, to occupied=true (%d)",
-		(void*) endpoint->endpoint_sent_frags, sfi,
-		frag->btl_header->seq,
-		sent_frag->occupied);
-#endif /* debug */
-#endif /* Reliability */
-
-    wr->wr.ud.ah = endpoint->endpoint_remote_ah;
-    wr->wr.ud.remote_qpn = endpoint->endpoint_remote_addr.qp_num;
-
-#if MSGDEBUG
+#if MSGDEBUG1
     /* JMS Remove me */
     {
         uint8_t mac[6];
-	char mac_str1[128];
-	char mac_str2[128];
-	ompi_btl_usnic_sprintf_mac(mac_str1, module->addr.mac);
+    char mac_str1[128];
+    char mac_str2[128];
+    ompi_btl_usnic_sprintf_mac(mac_str1, module->addr.mac);
         ompi_btl_usnic_gid_to_mac(&endpoint->endpoint_remote_addr.gid, mac);
-	ompi_btl_usnic_sprintf_mac(mac_str2, mac);
+    ompi_btl_usnic_sprintf_mac(mac_str2, mac);
 
-        opal_output(0, "--> Sending MSG: seq: %" UDSEQ ", sender: 0x%016lx from device %s MAC %s, qp %u, room %d, wc len %u, remote MAC %s, qp %u",
-                    frag->btl_header->seq, 
-                    frag->btl_header->sender, 
-		    endpoint->endpoint_module->device->name,
-		    mac_str1,
-                    module->addr.qp_num,
-		    room,
-                    frag->sg_entry.length,
-		    mac_str2,
-                    endpoint->endpoint_remote_addr.qp_num);
+        opal_output(0, "--> Sending %s: seq: %" UDSEQ ", sender: 0x%016lx from device %s MAC %s, qp %u, seg %p, room %d, wc len %u, remote MAC %s, qp %u",
+            (sseg->ss_parent_frag->sf_base.uf_type == OMPI_BTL_USNIC_FRAG_LARGE_SEND)?
+                "CHUNK" : "FRAG",
+            sseg->ss_base.us_btl_header->seq, 
+            sseg->ss_base.us_btl_header->sender, 
+            endpoint->endpoint_module->device->name,
+            mac_str1, module->addr.data_qp_num, sseg, sseg->ss_hotel_room,
+            sseg->ss_base.us_sg_entry.length,
+            mac_str2, endpoint->endpoint_remote_addr.data_qp_num);
     }
 #endif
 
-    if (OPAL_UNLIKELY((ret = ibv_post_send(module->qp, wr, &bad_wr)))) {
-        BTL_ERROR(("error posting send request: %d %s\n", ret, strerror(ret)));
-        /* JMS handle the error here */
+    /* do the actual send */
+    ompi_btl_usnic_post_segment(module, endpoint, sseg, 0);
+
+    /* If we have room in the sender's window, we also have room in
+       endpoint hotel */
+    ret = opal_hotel_checkin(&endpoint->endpoint_hotel, sseg,
+            &sseg->ss_hotel_room);
+    if (OPAL_UNLIKELY(OPAL_SUCCESS != ret)) {
+        /* Hotel is full; this shouldn't happen! */
+        BTL_ERROR(("=== Hotel full on endpoint send, mod %p, ep %p, seg %p", 
+                   (void*) module, (void*) endpoint, (void*) sseg));
         abort();
     }
-    /* It is possible for a send frag to be posted twice
-       simultaneously (e.g., send that hasn't been reaped via
-       cq_poll() yet and a resend), so we maintain a counter (vs. a
-       bool). */
-    ++frag->send_wr_posted;
+
+    /* bookkeeping */
+    --endpoint->endpoint_send_credits;
 
     /* Stats */
-    ++module->num_total_sends;
-    ++module->num_frag_sends;
-
-    return OMPI_SUCCESS;
-
-    /*****************************************************************/
- queue_send:
-    /* JMS See the comment in btl_usnic_module.c:usnic_send()
-       about why it's a better idea to queue up here.  We'll re-enable
-       this optimization later when I have time to debug it... */
-    return OMPI_ERR_OUT_OF_RESOURCE;
+    if (sseg->ss_parent_frag->sf_base.uf_type == OMPI_BTL_USNIC_FRAG_LARGE_SEND)
+        ++module->num_chunk_sends;
+    else
+        ++module->num_frag_sends;
 }
 
 
@@ -197,23 +155,30 @@ static void endpoint_construct(mca_btl_base_endpoint_t* endpoint)
     endpoint->endpoint_module = NULL;
     endpoint->endpoint_proc = NULL;
 
-    endpoint->endpoint_remote_addr.qp_num = 0;
+    endpoint->endpoint_remote_addr.data_qp_num = 0;
+    endpoint->endpoint_remote_addr.cmd_qp_num = 0;
     endpoint->endpoint_remote_addr.gid.global.subnet_prefix = 0;
     endpoint->endpoint_remote_addr.gid.global.interface_id = 0;
     endpoint->endpoint_remote_ah = NULL;
 
-#if RELIABILITY
+    endpoint->endpoint_send_credits = 8;
+
+    /* list of fragments queued to be sent */
+    OBJ_CONSTRUCT(&endpoint->endpoint_frag_send_queue, opal_list_t);
+
     endpoint->endpoint_next_seq_to_send = 10;
     endpoint->endpoint_ack_seq_rcvd = 9;
     endpoint->endpoint_next_contig_seq_to_recv = 10;
     endpoint->endpoint_highest_seq_rcvd = 9;
 
-    endpoint->endpoint_sent_frags = 
-        calloc(WINDOW_SIZE * 2, sizeof(ompi_btl_usnic_pending_frag_t));
-    endpoint->endpoint_rcvd_frags = endpoint->endpoint_sent_frags + WINDOW_SIZE;
-    endpoint->endpoint_sfstart = endpoint->endpoint_rfstart = 0;
+    endpoint->endpoint_sfstart = endpoint->endpoint_next_seq_to_send;
+    endpoint->endpoint_rfstart = endpoint->endpoint_next_contig_seq_to_recv;
 
-    /* Make a new OPAL hotel for this module */
+    /*
+     * Make a new OPAL hotel for this module
+     * "hotel" is a construct used for triggering segment retransmission
+     * due to timeout
+     */
     OBJ_CONSTRUCT(&endpoint->endpoint_hotel, opal_hotel_t);
     opal_hotel_init(&endpoint->endpoint_hotel, 
                     WINDOW_SIZE,
@@ -221,25 +186,28 @@ static void endpoint_construct(mca_btl_base_endpoint_t* endpoint)
                     0,
                     ompi_btl_usnic_ack_timeout);
 
-    /* Setup this endpoint's list item */
-    OBJ_CONSTRUCT(&(endpoint->endpoint_li.super), opal_list_item_t);
-    endpoint->endpoint_li.enqueued = false;
-    endpoint->endpoint_li.endpoint = endpoint;
-#endif
+    /* Setup this endpoint's ACK_needed list link */
+    OBJ_CONSTRUCT(&(endpoint->endpoint_ack_li), opal_list_item_t);
+    endpoint->endpoint_ack_needed = false;
+
+    /* fragment reassembly info */
+    endpoint->endpoint_rx_frag_info =
+        calloc(sizeof(struct ompi_btl_usnic_rx_frag_info_t), MAX_ACTIVE_FRAGS);
+    if (endpoint->endpoint_rx_frag_info == NULL) {
+        abort();
+    }
 
     endpoint->endpoint_nbo = false;
 }
 
 static void endpoint_destruct(mca_btl_base_endpoint_t* endpoint)
 {
-#if RELIABILITY
-    OBJ_DESTRUCT(&(endpoint->endpoint_li.super));
+    OBJ_DESTRUCT(&(endpoint->endpoint_ack_li));
     OBJ_DESTRUCT(&endpoint->endpoint_hotel);
 #if 0
     /* JMS Restore when we keep the original calloc pointer */
     free(endpoint->endpoint_sent_frags);
 #endif
-#endif /* RELIABILITY */
 
     if (NULL != endpoint->endpoint_remote_ah) {
         ibv_destroy_ah(endpoint->endpoint_remote_ah);

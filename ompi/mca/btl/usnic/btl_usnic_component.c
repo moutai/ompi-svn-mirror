@@ -60,6 +60,7 @@
 #include "btl_usnic.h"
 #include "btl_usnic_frag.h"
 #include "btl_usnic_endpoint.h"
+#include "btl_usnic_module.h"
 #include "btl_usnic_util.h"
 #include "btl_usnic_ack.h"
 #include "btl_usnic_send.h"
@@ -174,10 +175,11 @@ static int usnic_modex_send(void)
         for (i = 0; i < mca_btl_usnic_component.num_modules; i++) {
             ompi_btl_usnic_module_t* module = 
                 &mca_btl_usnic_component.usnic_modules[i];
-            addrs[i] = module->addr;
+            addrs[i] = module->local_addr;
             opal_output_verbose(5, mca_btl_base_output,
-                                "modex_send QP num %d, subnet = 0x%016" PRIx64 " interface =0x%016" PRIx64,
-                                addrs[i].qp_num, 
+                                "modex_send DQP:%d, CQP:%d, subnet = 0x%016" PRIx64 " interface =0x%016" PRIx64,
+                                addrs[i].data_qp_num, 
+                                addrs[i].cmd_qp_num, 
                                 ntoh64(addrs[i].gid.global.subnet_prefix),
                                 ntoh64(addrs[i].gid.global.interface_id));
         }
@@ -205,7 +207,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
 {
     int happy;
     mca_btl_base_module_t **btls;
-    uint32_t i, max_payload, *vpi;
+    uint32_t i, *vpi;
     ompi_btl_usnic_module_t *module;
     opal_list_item_t *item;
     unsigned short seedv[3];
@@ -347,15 +349,15 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
                             port->port_num, 
                             ntoh64(gid.global.subnet_prefix),
                             ntoh64(gid.global.interface_id));
-	module->addr.gid = gid;
+        module->local_addr.gid = gid;
 
         /* Extract the MAC address from the interface_id */
-        ompi_btl_usnic_gid_to_mac(&gid, module->addr.mac);
+        ompi_btl_usnic_gid_to_mac(&gid, module->local_addr.mac);
 
         /* Use that MAC address to find the device/port's
            corresponding IP address */
         if (OPAL_SUCCESS != ompi_btl_usnic_find_ip(module, 
-                                                   module->addr.mac)) {
+                                                   module->local_addr.mac)) {
             opal_output_verbose(5, mca_btl_base_output, 
                                 "btl:udverbs did not find IP interfaces for %s; skipping",
                                 ibv_get_device_name(port->device->device));
@@ -402,21 +404,21 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         opal_memchecker_base_mem_defined(&device_attr, sizeof(device_attr));
 
         /* How many xQ entries do we want? */
-	if (-1 == mca_btl_usnic_component.sd_num) {
-	    module->sd_num = device_attr.max_qp_wr;
-	} else {
-	    module->sd_num = mca_btl_usnic_component.sd_num;
-	}
-	if (-1 == mca_btl_usnic_component.sd_num) {
-	    module->rd_num = device_attr.max_qp_wr;
-	} else {
-	    module->rd_num = mca_btl_usnic_component.rd_num;
-	}
-	if (-1 == mca_btl_usnic_component.sd_num) {
-	    module->cq_num = device_attr.max_cqe;
-	} else {
-	    module->cq_num = mca_btl_usnic_component.cq_num;
-	}
+    if (-1 == mca_btl_usnic_component.sd_num) {
+        module->sd_num = device_attr.max_qp_wr;
+    } else {
+        module->sd_num = mca_btl_usnic_component.sd_num;
+    }
+    if (-1 == mca_btl_usnic_component.sd_num) {
+        module->rd_num = device_attr.max_qp_wr;
+    } else {
+        module->rd_num = mca_btl_usnic_component.rd_num;
+    }
+    if (-1 == mca_btl_usnic_component.sd_num) {
+        module->cq_num = device_attr.max_cqe;
+    } else {
+        module->cq_num = mca_btl_usnic_component.cq_num;
+    }
         opal_output_verbose(5, mca_btl_base_output,
                             "btl:usnic: num sqe=%d, num rqe=%d, num cqe=%d",
                             module->sd_num,
@@ -424,7 +426,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
                             module->cq_num);
 
         /* Find the max payload this port can handle */
-        max_payload = 
+        module->max_frag_payload =
             module->if_mtu - /* start with the MTU */
             sizeof(ompi_btl_usnic_protocol_header_t) - /* subtract size of
                                                            the protocol frame 
@@ -432,45 +434,36 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
             sizeof(ompi_btl_usnic_btl_header_t); /* subtract size of
                                                       the BTL
                                                       header */
-        /* If the eager/rndv/max send sizes are 0, initialize it to
-           the MTU of this port */
+        /* same, but use chunk header */
+        module->max_chunk_payload =
+            module->if_mtu -
+            sizeof(ompi_btl_usnic_protocol_header_t) -
+            sizeof(ompi_btl_usnic_btl_chunk_header_t);
+
+        /* If the eager/rndv limits are 0, initialize it to default */
         if (0 == module->super.btl_eager_limit) {
-            module->super.btl_eager_limit = max_payload;
+            module->super.btl_eager_limit = USNIC_DFLT_EAGER_LIMIT;
         }
-
-        /* See if the requested eager_limit is larger than the max
-           payload */
-        if (module->super.btl_eager_limit > max_payload) {
-            orte_show_help("help-mpi-btl-usnic.txt", "eager_limit too high",
-                           true, 
-                           orte_process_info.nodename,
-                           ibv_get_device_name(port->device->device), 
-                           port->port_num,
-                           max_payload,
-                           module->super.btl_eager_limit);
-            --mca_btl_usnic_component.num_modules;
-            --i;
-            continue;
-        }
-
-        /* JMS ULTIMATELY REMOVE ME. Temporarily set the value on the
-           template so that we can get it in the frag constructor.
-           See comment in btl_usnic_frag.c for more info. */
-        ompi_btl_usnic_module_template.super.btl_eager_limit = 
-            ompi_btl_usnic_module_template.super.btl_rndv_eager_limit = 
-            ompi_btl_usnic_module_template.super.btl_max_send_size = 
-            module->super.btl_eager_limit;
+        module->super.btl_rndv_eager_limit = module->super.btl_eager_limit;
 
         opal_output_verbose(5, mca_btl_base_output,
                             "btl:usnic: eager limit %s:%d = %" PRIsize_t,
                             port->device->device_name, port->port_num,
                             module->super.btl_eager_limit);
 
-        /* Set rndv_eager_limit and max_send_size to be the same as
-           the eager limit */
-        module->super.btl_rndv_eager_limit =
-            module->super.btl_max_send_size =
-            module->super.btl_eager_limit;
+
+        /* Set rndv_eager_limit to be the same as the eager limit */
+        module->super.btl_rndv_eager_limit = module->super.btl_eager_limit;
+
+        /* send size is unlimited, we handle fragmentation */
+        if (module->super.btl_max_send_size == 0) {
+            module->super.btl_max_send_size = USNIC_DFLT_MAX_SEND;
+        }
+
+        opal_output_verbose(5, mca_btl_base_output,
+                            "btl:usnic: max send limit %s:%d = %" PRIsize_t,
+                            port->device->device_name, port->port_num,
+                            module->super.btl_max_send_size);
 
         /* Make a hash table of senders */
         OBJ_CONSTRUCT(&module->senders, opal_hash_table_t);
@@ -546,33 +539,23 @@ static int usnic_component_progress(void)
 {
     uint32_t i;
     int j, count = 0, num_events;
-    ompi_btl_usnic_frag_t* frag;
-#if RELIABILITY
-    opal_list_item_t *item;
-#endif
+    ompi_btl_usnic_segment_t* seg;
+    ompi_btl_usnic_recv_segment_t* rseg;
     struct ibv_recv_wr *bad_wr, *repost_recv_head;
     struct ibv_wc* cwc;
     ompi_btl_usnic_module_t* module;
     static struct ibv_wc wc[OMPI_BTL_USNIC_NUM_WC];
+    ompi_btl_usnic_channel_t *channel;
+    int c;
 
     /* Poll for completions */
     for (i = 0; i < mca_btl_usnic_component.num_modules; i++) {
         module = &mca_btl_usnic_component.usnic_modules[i];
 
-#if RELIABILITY
-        /* If we have any pending resend frags, try to send the
-           first one. */
-        /* JMS Is it enough to only try to progress the first pending
-           frag?  Is that fair? */
-        /* JMS Should be able to check if there is anything to
-           progress first, and do it inline/here (without a function
-           call) */
-        if (module->sd_wqe > 0) {
-            ompi_btl_usnic_frag_progress_pending_resends(module);
-        }
-#endif
+        channel = &module->cmd_channel;
+        for (c=0; c<2; ++c) {
 
-        num_events = ibv_poll_cq(module->cq, OMPI_BTL_USNIC_NUM_WC, wc);
+        num_events = ibv_poll_cq(channel->cq, OMPI_BTL_USNIC_NUM_WC, wc);
         opal_memchecker_base_mem_defined(&num_events, sizeof(num_events));
         opal_memchecker_base_mem_defined(wc, sizeof(wc[0]) * num_events);
         if (OPAL_UNLIKELY(num_events < 0)) {
@@ -582,12 +565,10 @@ static int usnic_component_progress(void)
         }
 
         repost_recv_head = NULL;
-#if RELIABILITY
-        assert(opal_list_is_empty(&(module->endpoints_that_need_acks)));
-#endif
         for (j = 0; j < num_events; j++) {
             cwc = &wc[j];
-            frag = (ompi_btl_usnic_frag_t*)(unsigned long)cwc->wr_id;
+            seg = (ompi_btl_usnic_segment_t*)(unsigned long)cwc->wr_id;
+            rseg = (ompi_btl_usnic_recv_segment_t*)seg;
 
             if (OPAL_UNLIKELY(cwc->status != IBV_WC_SUCCESS)) {
                 BTL_ERROR(("error polling CQ with status %d for wr_id %" PRIx64 " opcode %d (%d of %d)\n",
@@ -595,75 +576,71 @@ static int usnic_component_progress(void)
                 /* If it was a receive error, just drop it and keep
                    going.  The sender will eventually re-send it. */
                 if (IBV_WC_RECV == cwc->opcode) {
-                    frag->wr_desc.rd_desc.next = repost_recv_head;
-                    repost_recv_head = &frag->wr_desc.rd_desc;
+                    rseg->rs_recv_desc.next = repost_recv_head;
+                    repost_recv_head = &rseg->rs_recv_desc;
                     continue;
                 }
                 return OMPI_ERROR;
             }
 
             /* Handle work completions */
-            switch(frag->type) {
+            switch(seg->us_type) {
 
             /**** Send ACK completions ****/
-#if RELIABILITY
-            case OMPI_BTL_USNIC_FRAG_ACK:
+            case OMPI_BTL_USNIC_SEG_ACK:
                 assert(IBV_WC_SEND == cwc->opcode);
-                ompi_btl_usnic_ack_complete(module, frag);
+                ompi_btl_usnic_ack_complete(module,
+                        (ompi_btl_usnic_ack_segment_t *)seg);
                 break;
-#endif
 
-            /**** Send fragment completions ****/
-            case OMPI_BTL_USNIC_FRAG_SEND:
+            /**** Send of frag segment completion ****/
+            case OMPI_BTL_USNIC_SEG_FRAG:
                 assert(IBV_WC_SEND == cwc->opcode);
-                ompi_btl_usnic_send_complete(module, frag);
+                ompi_btl_usnic_frag_send_complete(module,
+                        (ompi_btl_usnic_frag_segment_t*)seg);
+                break;
+
+            /**** Send of chunk segment completion ****/
+            case OMPI_BTL_USNIC_SEG_CHUNK:
+                assert(IBV_WC_SEND == cwc->opcode);
+                ompi_btl_usnic_chunk_send_complete(module,
+                        (ompi_btl_usnic_chunk_segment_t*)seg);
                 break;
 
             /**** Receive completions ****/
-            case OMPI_BTL_USNIC_FRAG_RECV:
+            case OMPI_BTL_USNIC_SEG_RECV:
                 assert(IBV_WC_RECV == cwc->opcode);
-                ompi_btl_usnic_recv(module, frag, &repost_recv_head);
+                ompi_btl_usnic_recv(module, rseg, &repost_recv_head);
                 break;
 
             default:
-                BTL_ERROR(("Unhandled completion opcode %d frag type %d",
-                            cwc->opcode, frag->type));
+                BTL_ERROR(("Unhandled completion opcode %d segment type %d",
+                            cwc->opcode, seg->us_type));
                 break;
             }
         }
+        count += num_events;
 
-#if RELIABILITY
-        /* If any endpoints received activity, send them an ACK */
-        for (item = opal_list_remove_first(&(module->endpoints_that_need_acks));
-             NULL != item;
-             item = opal_list_remove_first(&(module->endpoints_that_need_acks))) {
-            ompi_btl_usnic_endpoint_list_item_t *eli;
-
-            eli = (ompi_btl_usnic_endpoint_list_item_t*) item;
-            assert(eli->enqueued);
-            eli->enqueued = false;
-            ompi_btl_usnic_ack_send(module, eli->endpoint);
-        }
-#endif
+        /* progress sends */
+        ompi_btl_usnic_module_progress_sends(module);
 
         /* Re-post all the remaining receive buffers */
         if (OPAL_LIKELY(repost_recv_head)) {
 #if MSGDEBUG
             /* For the debugging case, check the state of each
-               fragment */
+               segment */
             {
                 struct ibv_recv_wr *wr = repost_recv_head;
                 while (wr) {
-                    frag = (ompi_btl_usnic_frag_t*)(unsigned long)wr->wr_id;
-                    assert(!FRAG_STATE_GET(frag, FRAG_RECV_WR_POSTED));
-                    assert(OMPI_BTL_USNIC_FRAG_RECV == frag->type);
+                    seg = (ompi_btl_usnic_recv_segment_t*)(unsigned long)wr->wr_id;
+                    assert(OMPI_BTL_USNIC_SEG_RECV == seg->us_type);
                     FRAG_HISTORY(frag, "Re-post: ibv_post_recv");
                     wr = wr->next;
                 }
             }
 #endif
 
-            if (OPAL_UNLIKELY(ibv_post_recv(module->qp, 
+            if (OPAL_UNLIKELY(ibv_post_recv(channel->qp, 
                                             repost_recv_head, &bad_wr) != 0)) {
                 BTL_ERROR(("error posting recv: %s\n", strerror(errno)));
                 return OMPI_ERROR;
@@ -671,7 +648,8 @@ static int usnic_component_progress(void)
             repost_recv_head = NULL;
         }
 
-        count += num_events;
+        channel = &module->data_channel;
+    }
     }
 
     return count;

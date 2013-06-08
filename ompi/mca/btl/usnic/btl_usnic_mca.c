@@ -40,6 +40,7 @@
 #include "btl_usnic.h"
 #include "btl_usnic_frag.h"
 #include "btl_usnic_endpoint.h"
+#include "btl_usnic_module.h"
 
 
 /*
@@ -196,18 +197,19 @@ int ompi_btl_usnic_component_register(void)
             mca_btl_usnic_component.rd_num + mca_btl_usnic_component.sd_num;
     }
 
-#if RELIABILITY
-    CHECK(reg_int("retrans_timeout", "number of miliseconds before retransmitting a frame",
+    CHECK(reg_int("retrans_timeout", "number of microseconds before retransmitting a frame",
                   /* JMS: Was 250,000 -- changed to 100,000 */
                   100000, &val, REGINT_GE_ONE));
     mca_btl_usnic_component.retrans_timeout = val;
-#endif
 
-    CHECK(reg_int("eager_limit", "Eager send limit.  If 0, use the device's current MTU size (minus OMPI protocol overhead).  In the usnic BTL, the eager send limit is also the same as the max send size.",
-                  0, &val, REGINT_GE_ZERO));
+    CHECK(reg_int("eager_limit", "Eager send limit.  If 0, use the device's default.",
+                  USNIC_DFLT_EAGER_LIMIT, &val, REGINT_GE_ZERO));
     ompi_btl_usnic_module_template.super.btl_eager_limit = 
-        ompi_btl_usnic_module_template.super.btl_rndv_eager_limit =
-        ompi_btl_usnic_module_template.super.btl_max_send_size = val;
+        ompi_btl_usnic_module_template.super.btl_rndv_eager_limit = val;
+
+    CHECK(reg_int("max_send_size", "Max send size.  If 0, use device default.",
+                  USNIC_DFLT_MAX_SEND, &val, REGINT_GE_ZERO));
+    ompi_btl_usnic_module_template.super.btl_max_send_size = val;
 
     /* Default to bandwidth auto-detection */
     ompi_btl_usnic_module_template.super.btl_bandwidth = 0;

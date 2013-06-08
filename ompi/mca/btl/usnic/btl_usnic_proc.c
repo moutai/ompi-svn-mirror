@@ -31,6 +31,8 @@
 
 #include "btl_usnic.h"
 #include "btl_usnic_proc.h"
+#include "btl_usnic_endpoint.h"
+#include "btl_usnic_module.h"
 
 
 static void proc_construct(ompi_btl_usnic_proc_t* proc)
