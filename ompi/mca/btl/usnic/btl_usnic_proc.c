@@ -278,17 +278,6 @@ int ompi_btl_usnic_proc_insert(ompi_btl_usnic_module_t *module,
 {
     size_t i;
 
-#ifndef WORDS_BIGENDIAN
-    /* If we are little endian and our peer is not so lucky, then we
-       need to put all information sent to him in big endian (aka
-       Network Byte Order) and expect all information received to
-       be in NBO.  Since big endian machines always send and receive
-       in NBO, we don't care so much about that case. */
-    if (proc->proc_ompi->proc_arch & OPAL_ARCH_ISBIGENDIAN) {
-        endpoint->endpoint_nbo = true;
-    }
-#endif
-
     /* Each module can claim an address in the proc's modex info that
        no other local module is using.  See if we can find an unused
        address that's on this module's subnet. */

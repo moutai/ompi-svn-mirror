@@ -144,9 +144,6 @@ typedef struct mca_btl_base_endpoint_t {
 
     bool                            endpoint_rcvd_segs[WINDOW_SIZE];
     uint32_t                        endpoint_rfstart;
-
-    /** Do we need to convert headers to network byte order? */
-    bool                             endpoint_nbo;
 } mca_btl_base_endpoint_t;
 
 typedef mca_btl_base_endpoint_t ompi_btl_usnic_endpoint_t;

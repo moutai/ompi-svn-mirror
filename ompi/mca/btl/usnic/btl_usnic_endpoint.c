@@ -196,8 +196,6 @@ static void endpoint_construct(mca_btl_base_endpoint_t* endpoint)
     if (endpoint->endpoint_rx_frag_info == NULL) {
         abort();
     }
-
-    endpoint->endpoint_nbo = false;
 }
 
 static void endpoint_destruct(mca_btl_base_endpoint_t* endpoint)
