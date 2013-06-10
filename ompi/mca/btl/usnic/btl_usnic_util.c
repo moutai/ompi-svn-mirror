@@ -125,6 +125,10 @@ int ompi_btl_usnic_find_ip(ompi_btl_usnic_module_t *module, uint8_t mac[6])
 /*
  * Reverses the encoding done in usnic_main.c:usnic_mac_to_gid() in
  * the usnic.ko kernel code.
+ *
+ * Got this scheme from Mellanox RoCE; Emulex did the same thing.  So
+ * we followed convention.
+ * http://www.mellanox.com/related-docs/prod_software/RoCE_with_Priority_Flow_Control_Application_Guide.pdf
  */
 void ompi_btl_usnic_gid_to_mac(union ibv_gid *gid, uint8_t mac[6])
 {
