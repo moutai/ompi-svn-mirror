@@ -77,8 +77,8 @@ typedef struct ompi_btl_usnic_module_t {
     /* Information about the IP interface corresponding to this USNIC
        interface */
     char if_name[64];
-    uint32_t if_ipv4_addr;
-    uint32_t if_cidrmask;
+    uint32_t if_ipv4_addr; /* in network byte order */
+    uint32_t if_cidrmask; /* X in "/X" CIDR addr fmt, host byte order */
     uint8_t if_mac[6];
     int if_mtu;
 

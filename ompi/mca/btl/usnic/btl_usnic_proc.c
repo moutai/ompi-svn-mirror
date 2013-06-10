@@ -81,6 +81,19 @@ static void proc_destruct(ompi_btl_usnic_proc_t* proc)
     OBJ_DESTRUCT(&proc->proc_lock);
 }
 
+/* takes an IPv4 address in network byte order and a CIDR prefix length (the
+ * "X" in "a.b.c.d/X") and returns the subnet in network byte order. */
+static uint32_t get_subnet_ipv4_cidr(uint32_t addrn, uint32_t cidr_len)
+{
+    uint32_t mask;
+
+    assert(cidr_len <= 32);
+
+    /* perform arithmetic in host byte order for shift correctness */
+    mask = (~0) << (32 - cidr_len);
+    return htonl(ntohl(addrn) & mask);
+}
+
 
 OBJ_CLASS_INSTANCE(ompi_btl_usnic_proc_t,
                    opal_list_item_t, 
@@ -136,8 +149,8 @@ ompi_btl_usnic_endpoint_t *
 ompi_btl_usnic_proc_lookup_endpoint(ompi_btl_usnic_module_t *receiver,
                                       uint64_t sender_hashed_orte_name)
 {
-    size_t i, j;
-    uint32_t mask, mynet, peernet;
+    size_t i;
+    uint32_t mynet, peernet;
     ompi_btl_usnic_proc_t *proc;
     ompi_btl_usnic_endpoint_t *endpoint;
     
@@ -163,23 +176,13 @@ ompi_btl_usnic_proc_lookup_endpoint(ompi_btl_usnic_module_t *receiver,
        that we can reach.  For the moment, do the same test as in
        proc_insert: check to see if we have compatible IPv4
        networks. */
-    /* JMS This is essentially duplicated code (see proc_insert,
-       below) -- should figure out how subroutine-ize this
-       functionality. */
-    mynet = receiver->if_ipv4_addr;
-    for (i = 0, mask = ~0; i < (32 - receiver->if_cidrmask); ++i, mask >>= 1) {
-        continue;
-    }
-    mynet &= mask;
+    mynet = get_subnet_ipv4_cidr(receiver->if_ipv4_addr,
+                                 receiver->if_cidrmask);
 
     for (i = 0; i < proc->proc_endpoint_count; ++i) {
         endpoint = proc->proc_endpoints[i];
-        peernet = endpoint->endpoint_remote_addr.ipv4_addr;
-        for (j = 0, mask = ~0; j < (32 - endpoint->endpoint_remote_addr.cidrmask);
-             ++j, mask >>= 1) {
-            continue;
-        }
-        peernet &= mask;
+        peernet = get_subnet_ipv4_cidr(endpoint->endpoint_remote_addr.ipv4_addr,
+                                       endpoint->endpoint_remote_addr.cidrmask);
 
         /* If we match, we're done */
         if (mynet == peernet) {
@@ -284,7 +287,7 @@ int ompi_btl_usnic_proc_insert(ompi_btl_usnic_module_t *module,
     for (i = 0; i < proc->proc_modex_count; ++i) {
         if (!proc->proc_modex_claimed[i]) {
             char my_ip_string[32], peer_ip_string[32];
-            uint32_t j, mask, mynet, peernet;
+            uint32_t mynet, peernet;
 
             inet_ntop(AF_INET, &module->if_ipv4_addr,
                       my_ip_string, sizeof(my_ip_string));
@@ -301,25 +304,19 @@ int ompi_btl_usnic_proc_insert(ompi_btl_usnic_module_t *module,
                eventually replace this with the same type of IP
                address matching that is in the TCP BTL (probably want
                to move that routine down to opal/util/if.c...?) */
-            /* JMS mynet is loop invariant */
-            mynet = module->if_ipv4_addr;
-            for (j = 0, mask = ~0; j < (32 - module->if_cidrmask); 
-                 ++j, mask >>= 1) {
-                continue;
-            }
-            mynet &= mask;
-
-            peernet = proc->proc_modex[i].ipv4_addr;
-            for (j = 0, mask = ~0; j < (32 - proc->proc_modex[i].cidrmask);
-                 ++j, mask >>= 1) {
-                continue;
-            }
-            peernet &= mask;
+            mynet   = get_subnet_ipv4_cidr(module->if_ipv4_addr,
+                                           module->if_cidrmask);
+            peernet = get_subnet_ipv4_cidr(proc->proc_modex[i].ipv4_addr,
+                                           proc->proc_modex[i].cidrmask);
 
             /* If we match, we're done */
             if (mynet == peernet) {
                 opal_output_verbose(5, mca_btl_base_output, "btl:usnic:proc_insert: IP networks match -- yay!\n");
                 break;
+            }
+            else {
+                opal_output_verbose(5, mca_btl_base_output, "btl:usnic:proc_insert: IP networks DO NOT match -- mynet=%#x peernet=%#x\n",
+                                    mynet, peernet);
             }
         }
     }
