@@ -359,7 +359,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         if (OPAL_SUCCESS != ompi_btl_usnic_find_ip(module, 
                                                    module->local_addr.mac)) {
             opal_output_verbose(5, mca_btl_base_output, 
-                                "btl:udverbs did not find IP interfaces for %s; skipping",
+                                "btl:usnic: did not find IP interfaces for %s; skipping",
                                 ibv_get_device_name(port->device->device));
             continue;
         }
