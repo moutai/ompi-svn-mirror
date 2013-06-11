@@ -290,9 +290,10 @@ int ompi_btl_usnic_proc_insert(ompi_btl_usnic_module_t *module,
                       my_ip_string, sizeof(my_ip_string));
             inet_ntop(AF_INET, &proc->proc_modex[i].ipv4_addr,
                       peer_ip_string, sizeof(peer_ip_string));
-            opal_output_verbose(5, mca_btl_base_output, "btl:usnic:proc_insert: checking my IP address/subnet (%s/%d) vs. peer (%s/%d)\n",
-                        my_ip_string, module->if_cidrmask,
-                        peer_ip_string, proc->proc_modex[i].cidrmask);
+            opal_output_verbose(5, mca_btl_base_output,
+                                "btl:usnic:proc_insert: checking my IP address/subnet (%s/%d) vs. peer (%s/%d)\n",
+                                my_ip_string, module->if_cidrmask,
+                                peer_ip_string, proc->proc_modex[i].cidrmask);
 
             /* JMS For the moment, do an abbreviated comparison.  Just
                compare the CIDR-masked IP address to see if they're on

@@ -177,7 +177,7 @@ static int usnic_modex_send(void)
                 &mca_btl_usnic_component.usnic_modules[i];
             addrs[i] = module->local_addr;
             opal_output_verbose(5, mca_btl_base_output,
-                                "modex_send DQP:%d, CQP:%d, subnet = 0x%016" PRIx64 " interface =0x%016" PRIx64,
+                                "btl:usnic: modex_send DQP:%d, CQP:%d, subnet = 0x%016" PRIx64 " interface =0x%016" PRIx64,
                                 addrs[i].data_qp_num, 
                                 addrs[i].cmd_qp_num, 
                                 ntoh64(addrs[i].gid.global.subnet_prefix),
@@ -280,6 +280,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
              (0 == mca_btl_usnic_component.max_modules ||
               i < mca_btl_usnic_component.max_modules);
          ++i, item = opal_list_get_next(item)) {
+        char my_ip_string[32];
         port = (ompi_common_verbs_port_item_t*) item;
 
         opal_output_verbose(5, mca_btl_base_output,
@@ -344,7 +345,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         }
 
         opal_output_verbose(5, mca_btl_base_output,
-                            "GID for verbs device %s port %d: subnet 0x%016" PRIx64 ", interface 0x%016" PRIx64,
+                            "btl:usnic: GID for %s:%d: subnet 0x%016" PRIx64 ", interface 0x%016" PRIx64,
                             ibv_get_device_name(port->device->device), 
                             port->port_num, 
                             ntoh64(gid.global.subnet_prefix),
@@ -363,6 +364,13 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
                                 ibv_get_device_name(port->device->device));
             continue;
         }
+	inet_ntop(AF_INET, &module->if_ipv4_addr,
+		  my_ip_string, sizeof(my_ip_string));
+	opal_output_verbose(5, mca_btl_base_output,
+			    "btl:usnic: IP address for %s:%d: %s",
+			    ibv_get_device_name(port->device->device),
+			    port->port_num,
+			    my_ip_string);
 
         /* Get this port's bandwidth */
         if (0 == module->super.btl_bandwidth) {

@@ -141,9 +141,9 @@ static int usnic_add_procs(struct mca_btl_base_module_t* base_module,
            and actually zero out all the fields that we don't care
            about / want to be logically false. */
         memset(&ah_attr, 0, sizeof(ah_attr));
-    ah_attr.is_global = 1;
+        ah_attr.is_global = 1;
         ah_attr.port_num = 1;
-    ah_attr.grh.dgid = usnic_endpoint->endpoint_remote_addr.gid;
+        ah_attr.grh.dgid = usnic_endpoint->endpoint_remote_addr.gid;
 
         usnic_endpoint->endpoint_remote_ah = 
             ibv_create_ah(module->pd, &ah_attr);
@@ -161,18 +161,18 @@ static int usnic_add_procs(struct mca_btl_base_module_t* base_module,
         }
 
         opal_output_verbose(5, mca_btl_base_output,
-                            "new usnic peer: subnet = 0x%016" PRIx64 ", interface = 0x%016" PRIx64,
+                            "btl:usnic: new usnic peer: subnet = 0x%016" PRIx64 ", interface = 0x%016" PRIx64,
                             ntoh64(usnic_endpoint->endpoint_remote_addr.gid.global.subnet_prefix),
                             ntoh64(usnic_endpoint->endpoint_remote_addr.gid.global.interface_id));
 
         opal_bitmap_set_bit(reachable, i);
         endpoints[i] = usnic_endpoint;
-        opal_output_verbose(5, mca_btl_base_output,
-                            "made %p endpoint", (void*) usnic_endpoint);
+        opal_output_verbose(15, mca_btl_base_output,
+                            "btl:usnic: made %p endpoint", (void*) usnic_endpoint);
         count++;
     }
     opal_output_verbose(5, mca_btl_base_output,
-                        "made %" PRIsize_t " endpoints", count);
+                        "btl:usnic: made %" PRIsize_t " endpoints", count);
 
     return OMPI_SUCCESS;
 }
