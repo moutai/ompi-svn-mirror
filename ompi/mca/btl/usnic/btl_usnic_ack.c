@@ -21,8 +21,8 @@
 #include "btl_usnic_endpoint.h"
 #include "btl_usnic_module.h"
 #include "btl_usnic_ack.h"
-#include "btl_usnic_send.h"
 #include "btl_usnic_util.h"
+#include "btl_usnic_send.h"
 
 /*
  * Force a retrans of a segment

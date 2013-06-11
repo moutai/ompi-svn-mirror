@@ -14,7 +14,9 @@
 
 #include "btl_usnic.h"
 #include "btl_usnic_frag.h"
-
+#if MSGDEBUG1
+#include "btl_usnic_util.h"
+#endif
 
 /*
  * Check if conditions are right, and if so, put endpoint on 
@@ -58,8 +60,9 @@ ompi_btl_usnic_post_segment(
 
 #if MSGDEBUG1
     opal_output(0, "post_send: type=%d, addr=%p, len=%d\n",
-        sseg->ss_base.us_type,
-        sseg->ss_send_desc.sg_list->addr, sseg->ss_send_desc.sg_list->length);
+                sseg->ss_base.us_type,
+                (void*) sseg->ss_send_desc.sg_list->addr, 
+                sseg->ss_send_desc.sg_list->length);
     ompi_btl_usnic_dump_hex((void *)(sseg->ss_send_desc.sg_list->addr + sizeof(ompi_btl_usnic_btl_header_t)), 16);
 #endif
 

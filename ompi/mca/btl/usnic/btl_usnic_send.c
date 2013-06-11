@@ -34,6 +34,7 @@
 
 #include "btl_usnic.h"
 #include "btl_usnic_frag.h"
+#include "btl_usnic_util.h"
 #include "btl_usnic_send.h"
 #include "btl_usnic_ack.h"
 
