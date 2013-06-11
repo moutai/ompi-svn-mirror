@@ -737,6 +737,7 @@ ompi_btl_usnic_module_progress_sends(
         if (!sseg->ss_send_posted) {
 
             /* resends are always standard segments */
+            sseg->ss_channel = USNIC_DATA_CHANNEL;
             ompi_btl_usnic_post_segment(module, endpoint, sseg, 0);
 
             /* consume a send credit for this endpoint.  May send us 
