@@ -161,13 +161,10 @@ int ompi_btl_usnic_component_register(void)
     opal_argv_free(parts);
 
     CHECK(reg_int("stats",
-                  "Whether you want stats emitted periodically or not (default: 0)",
-                  0, &val, 0));
-    mca_btl_usnic_component.stats_enabled = (bool) val;
-
-    CHECK(reg_int("stats_frequency",
-                  "If stats are enabled, the frequency (in seconds) in which stats are output",
-                  60, &mca_btl_usnic_component.stats_frequency, 0));
+                  "A non-negative integer specifying the frequency at which each USNIC BTL will output statistics (default: 0 seconds, meaning that statistics are disabled)",
+                  0, &mca_btl_usnic_component.stats_frequency, 0));
+    mca_btl_usnic_component.stats_enabled = 
+        (bool) (mca_btl_usnic_component.stats_frequency > 0);
 
     CHECK(reg_int("stats_relative",
                   "If stats are enabled, output relative stats between the timestemps (vs. cumulative stats since the beginning of the job) (default: 0 -- i.e., absolute)",
