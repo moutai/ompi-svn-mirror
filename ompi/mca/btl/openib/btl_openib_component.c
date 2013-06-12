@@ -1729,6 +1729,17 @@ static int init_one_device(opal_list_t *btl_list, struct ibv_device* ib_dev)
                            device->ib_dev_attr.vendor_part_id);
         }
     }
+
+    /* If we're supposed to ignore devices of this vendor/part ID,
+       then do so */
+    if (values.ignore_device_set && values.ignore_device) {
+        BTL_VERBOSE(("device %s skipped; ignore_device=1",
+                     ibv_get_device_name(device->ib_dev)));
+        ret = OMPI_SUCCESS;
+        ++num_devices_intentionally_ignored;
+        goto error;
+    }
+
     /* Note that even if we don't find default values, "values" will
        be set indicating that it does not have good values */
     ret = ompi_btl_openib_ini_query(0, 0, &default_values);
@@ -2784,8 +2795,8 @@ btl_openib_component_init(int *num_btl_modules,
         }
 
         found = true;
-        if (OMPI_SUCCESS !=
-            (ret = init_one_device(&btl_list, dev_sorted[i].ib_dev))) {
+        ret = init_one_device(&btl_list, dev_sorted[i].ib_dev);
+        if (OMPI_SUCCESS != ret && OMPI_ERR_NOT_SUPPORTED != ret) {
             free(dev_sorted);
             goto no_btls;
         }
@@ -2820,9 +2831,9 @@ btl_openib_component_init(int *num_btl_modules,
         /* If there were unusable devices that weren't specifically
            ignored, warn about it */
         if (num_devices_intentionally_ignored < num_devs) {
-            orte_show_help("help-mpi-btl-openib.txt",
+            opal_show_help("help-mpi-btl-openib.txt",
                            "no active ports found", true, 
-                           orte_process_info.nodename);
+                           ompi_process_info.nodename);
         }
         goto no_btls;
     }
