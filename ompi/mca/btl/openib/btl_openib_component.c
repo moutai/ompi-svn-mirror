@@ -1683,19 +1683,6 @@ static int init_one_device(opal_list_t *btl_list, struct ibv_device* ib_dev)
                     ibv_get_device_name(device->ib_dev), strerror(errno)));
         goto error;
     }
-
-    /* Due to delays in getting changes to libibverbs upstream, don't
-       use this module with Cisco VICs (i.e., vendor_id == 0x1137). It
-       would be better to switch on the node_type or transport_type,
-       but those aren't upstream in libibverbs yet. */
-    if (device->ib_dev_attr.vendor_id == 0x1137) {
-        BTL_VERBOSE(("openib: skipping non-IB/IWARP Cisco VIC %s",
-                     ibv_get_device_name(device->ib_dev)));
-        ++num_devices_intentionally_ignored;
-        ret = OMPI_SUCCESS;
-        goto error;
-    }
-
     /* If mca_btl_if_include/exclude were specified, get usable ports */
     allowed_ports = (int*)malloc(device->ib_dev_attr.phys_port_cnt * sizeof(int));
     port_cnt = get_port_list(device, allowed_ports);
