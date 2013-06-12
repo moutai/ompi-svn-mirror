@@ -329,8 +329,7 @@ int ompi_btl_usnic_proc_insert(ompi_btl_usnic_module_t *module,
     }
 
     proc->proc_modex_claimed[i] = true;
-    endpoint->endpoint_remote_addr = 
-        proc->proc_modex[proc->proc_endpoint_count];
+    endpoint->endpoint_remote_addr = proc->proc_modex[i];
     proc->proc_endpoints[proc->proc_endpoint_count] = endpoint;
     OBJ_RETAIN(endpoint);
     ++proc->proc_endpoint_count;
