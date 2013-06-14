@@ -12,7 +12,7 @@
 #                         All rights reserved.
 # Copyright (c) 2006      Sandia National Laboratories. All rights
 #                         reserved.
-# Copyright (c) 2010-2012 Cisco Systems, Inc.  All rights reserved.
+# Copyright (c) 2010-2013 Cisco Systems, Inc.  All rights reserved.
 # $COPYRIGHT$
 # 
 # Additional copyrights may follow
@@ -28,6 +28,15 @@ AC_DEFUN([MCA_btl_usnic_CONFIG],[
     OMPI_CHECK_OPENIB([btl_usnic],
                         [btl_usnic_happy="yes"],
                         [btl_usnic_happy="no"])
+
+    # We only want to build on Linux.  We also use the clock_gettime()
+    # function, which conveniently only happens to exist on Linux.  So
+    # just check for that.
+    AS_IF([test "$btl_usnic_happy" = "yes"],
+          [AC_CHECK_FUNC([clock_gettime],
+                         [btl_usnic_happy=yes],
+                         [btl_usnic_happy=no])
+          ])
 
     # Do we have the IBV_TRANSPORT_USNIC / IBV_NODE_USNIC defines?
     # (note: if we have one, we have both)
