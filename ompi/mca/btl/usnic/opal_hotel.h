@@ -171,16 +171,15 @@ OPAL_DECLSPEC int opal_hotel_init(opal_hotel_t *hotel, int num_rooms,
  * @return OPAL_ERR_TEMP_OUT_OF_RESOURCE is the hotel is full.  Try
  * again later.
  */
-static inline int opal_hotel_checkin(opal_hotel_t *hotel,
+
+/*
+ * Use this when you know you will have a room available
+ */
+static inline void opal_hotel_checkin_with_res(opal_hotel_t *hotel,
                                      void *occupant,
                                      int *room_num)
 {
     opal_hotel_room_t *room;
-
-    /* Do we have any rooms available? */
-    if (OPAL_UNLIKELY(hotel->last_unoccupied_room < 0)) {
-        return OPAL_ERR_TEMP_OUT_OF_RESOURCE;
-    }
 
     /* Put this occupant into the first empty room that we have */
     *room_num = hotel->unoccupied_rooms[hotel->last_unoccupied_room--];
@@ -191,6 +190,19 @@ static inline int opal_hotel_checkin(opal_hotel_t *hotel,
     /* Assign the event and make it pending */
     opal_event_add(&(room->eviction_timer_event),
                    &(hotel->eviction_timeout));
+}
+
+static inline int opal_hotel_checkin(opal_hotel_t *hotel,
+                                     void *occupant,
+                                     int *room_num)
+{
+    /* Do we have any rooms available? */
+    if (OPAL_UNLIKELY(hotel->last_unoccupied_room < 0)) {
+        return OPAL_ERR_TEMP_OUT_OF_RESOURCE;
+    }
+
+    /* got reservatio, do the checkin */
+    opal_hotel_checkin_with_res(hotel, occupant, room_num);
 
     return OPAL_SUCCESS;
 }

@@ -68,7 +68,7 @@
 #include "btl_usnic_if.h"
 
 #define OMPI_BTL_USNIC_NUM_WC       500
-
+#define max(a,b) ((a) > (b) ? (a) : (b))
 
 static int usnic_component_open(void);
 static int usnic_component_close(void);
@@ -178,8 +178,8 @@ static int usnic_modex_send(void)
             addrs[i] = module->local_addr;
             opal_output_verbose(5, mca_btl_base_output,
                                 "btl:usnic: modex_send DQP:%d, CQP:%d, subnet = 0x%016" PRIx64 " interface =0x%016" PRIx64,
-                                addrs[i].data_qp_num, 
-                                addrs[i].cmd_qp_num, 
+                                addrs[i].qp_num[USNIC_DATA_CHANNEL], 
+                                addrs[i].qp_num[USNIC_PRIORITY_CHANNEL], 
                                 ntoh64(addrs[i].gid.global.subnet_prefix),
                                 ntoh64(addrs[i].gid.global.interface_id));
         }
@@ -412,21 +412,45 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         opal_memchecker_base_mem_defined(&device_attr, sizeof(device_attr));
 
         /* How many xQ entries do we want? */
-    if (-1 == mca_btl_usnic_component.sd_num) {
-        module->sd_num = device_attr.max_qp_wr;
-    } else {
-        module->sd_num = mca_btl_usnic_component.sd_num;
-    }
-    if (-1 == mca_btl_usnic_component.sd_num) {
-        module->rd_num = device_attr.max_qp_wr;
-    } else {
-        module->rd_num = mca_btl_usnic_component.rd_num;
-    }
-    if (-1 == mca_btl_usnic_component.sd_num) {
-        module->cq_num = device_attr.max_cqe;
-    } else {
-        module->cq_num = mca_btl_usnic_component.cq_num;
-    }
+        if (-1 == mca_btl_usnic_component.sd_num) {
+            module->sd_num = device_attr.max_qp_wr;
+        } else {
+            module->sd_num = mca_btl_usnic_component.sd_num;
+        }
+        if (-1 == mca_btl_usnic_component.rd_num) {
+            module->rd_num = device_attr.max_qp_wr;
+        } else {
+            module->rd_num = mca_btl_usnic_component.rd_num;
+        }
+        if (-1 == mca_btl_usnic_component.cq_num) {
+            module->cq_num = device_attr.max_cqe;
+        } else {
+            module->cq_num = mca_btl_usnic_component.cq_num;
+        }
+
+        /*
+         * queue sizes for priority channel scale with # of endpoint
+         * A little bit of chicken and egg here, we really want procs*ports,
+         * but we can't know # of ports til we try to initialize, so 32xprocs
+         * is best guess.  User can always override.
+         */
+        if (-1 == mca_btl_usnic_component.prio_sd_num) {
+            module->prio_sd_num = max(128, 32*orte_process_info.num_procs) - 1;
+        } else {
+            module->prio_sd_num = mca_btl_usnic_component.prio_sd_num;
+        }
+        if (module->prio_sd_num > device_attr.max_qp_wr) {
+            module->prio_sd_num = device_attr.max_qp_wr;
+        }
+        if (-1 == mca_btl_usnic_component.prio_rd_num) {
+            module->prio_rd_num = max(128, 32*orte_process_info.num_procs) - 1;
+        } else {
+            module->prio_rd_num = mca_btl_usnic_component.prio_rd_num;
+        }
+        if (module->prio_rd_num > device_attr.max_qp_wr) {
+            module->prio_rd_num = device_attr.max_qp_wr;
+        }
+
         opal_output_verbose(5, mca_btl_base_output,
                             "btl:usnic: num sqe=%d, num rqe=%d, num cqe=%d",
                             module->sd_num,
@@ -436,7 +460,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         /* Find the max payload this port can handle */
         module->max_frag_payload =
             module->if_mtu - /* start with the MTU */
-            sizeof(ompi_btl_usnic_protocol_header_t) - /* subtract size of
+            (24+sizeof(ompi_btl_usnic_protocol_header_t)) - /* subtract size of
                                                            the protocol frame 
                                                            header */
             sizeof(ompi_btl_usnic_btl_header_t); /* subtract size of
@@ -447,6 +471,11 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
             module->if_mtu -
             sizeof(ompi_btl_usnic_protocol_header_t) -
             sizeof(ompi_btl_usnic_btl_chunk_header_t);
+
+        module->tiny_mtu = 768;
+        module->max_tiny_payload = module->tiny_mtu -
+            sizeof(ompi_btl_usnic_protocol_header_t) -
+            sizeof(ompi_btl_usnic_btl_header_t);
 
         /* If the eager/rndv limits are 0, initialize it to default */
         if (0 == module->super.btl_eager_limit) {
@@ -560,104 +589,105 @@ static int usnic_component_progress(void)
     for (i = 0; i < mca_btl_usnic_component.num_modules; i++) {
         module = &mca_btl_usnic_component.usnic_modules[i];
 
-        channel = &module->cmd_channel;
-        for (c=0; c<2; ++c) {
+        /* poll each channel */
+        for (c=0; c<USNIC_NUM_CHANNELS; ++c) {
+            channel = &module->mod_channels[c];
 
-        num_events = ibv_poll_cq(channel->cq, OMPI_BTL_USNIC_NUM_WC, wc);
-        opal_memchecker_base_mem_defined(&num_events, sizeof(num_events));
-        opal_memchecker_base_mem_defined(wc, sizeof(wc[0]) * num_events);
-        if (OPAL_UNLIKELY(num_events < 0)) {
-            BTL_ERROR(("error polling CQ with %d: %s\n",
-                    num_events, strerror(errno)));
-            return OMPI_ERROR;
-        }
-
-        repost_recv_head = NULL;
-        for (j = 0; j < num_events; j++) {
-            cwc = &wc[j];
-            seg = (ompi_btl_usnic_segment_t*)(unsigned long)cwc->wr_id;
-            rseg = (ompi_btl_usnic_recv_segment_t*)seg;
-
-            if (OPAL_UNLIKELY(cwc->status != IBV_WC_SUCCESS)) {
-                BTL_ERROR(("error polling CQ with status %d for wr_id %" PRIx64 " opcode %d (%d of %d)\n",
-                           cwc->status, cwc->wr_id, cwc->opcode, j, num_events));
-                /* If it was a receive error, just drop it and keep
-                   going.  The sender will eventually re-send it. */
-                if (IBV_WC_RECV == cwc->opcode) {
-                    rseg->rs_recv_desc.next = repost_recv_head;
-                    repost_recv_head = &rseg->rs_recv_desc;
-                    continue;
-                }
+            num_events = ibv_poll_cq(channel->cq, OMPI_BTL_USNIC_NUM_WC, wc);
+            opal_memchecker_base_mem_defined(&num_events, sizeof(num_events));
+            opal_memchecker_base_mem_defined(wc, sizeof(wc[0]) * num_events);
+            if (OPAL_UNLIKELY(num_events < 0)) {
+                BTL_ERROR(("error polling CQ with %d: %s\n",
+                        num_events, strerror(errno)));
                 return OMPI_ERROR;
             }
 
-            /* Handle work completions */
-            switch(seg->us_type) {
+            repost_recv_head = NULL;
+            for (j = 0; j < num_events; j++) {
+                cwc = &wc[j];
+                seg = (ompi_btl_usnic_segment_t*)(unsigned long)cwc->wr_id;
+                rseg = (ompi_btl_usnic_recv_segment_t*)seg;
 
-            /**** Send ACK completions ****/
-            case OMPI_BTL_USNIC_SEG_ACK:
-                assert(IBV_WC_SEND == cwc->opcode);
-                ompi_btl_usnic_ack_complete(module,
-                        (ompi_btl_usnic_ack_segment_t *)seg);
-                break;
+                if (OPAL_UNLIKELY(cwc->status != IBV_WC_SUCCESS)) {
+                    BTL_ERROR(("error polling CQ with status %d for wr_id %" PRIx64 " opcode %d (%d of %d)\n",
+                               cwc->status, cwc->wr_id, cwc->opcode, j,
+                               num_events));
+                    /* If it was a receive error, just drop it and keep
+                       going.  The sender will eventually re-send it. */
+                    if (IBV_WC_RECV == cwc->opcode) {
+                        rseg->rs_recv_desc.next = repost_recv_head;
+                        repost_recv_head = &rseg->rs_recv_desc;
+                        continue;
+                    }
+                    return OMPI_ERROR;
+                }
 
-            /**** Send of frag segment completion ****/
-            case OMPI_BTL_USNIC_SEG_FRAG:
-                assert(IBV_WC_SEND == cwc->opcode);
-                ompi_btl_usnic_frag_send_complete(module,
-                        (ompi_btl_usnic_frag_segment_t*)seg);
-                break;
+                /* Handle work completions */
+                switch(seg->us_type) {
 
-            /**** Send of chunk segment completion ****/
-            case OMPI_BTL_USNIC_SEG_CHUNK:
-                assert(IBV_WC_SEND == cwc->opcode);
-                ompi_btl_usnic_chunk_send_complete(module,
-                        (ompi_btl_usnic_chunk_segment_t*)seg);
-                break;
+                /**** Send ACK completions ****/
+                case OMPI_BTL_USNIC_SEG_ACK:
+                    assert(IBV_WC_SEND == cwc->opcode);
+                    ompi_btl_usnic_ack_complete(module,
+                            (ompi_btl_usnic_ack_segment_t *)seg);
+                    break;
 
-            /**** Receive completions ****/
-            case OMPI_BTL_USNIC_SEG_RECV:
-                assert(IBV_WC_RECV == cwc->opcode);
-                ompi_btl_usnic_recv(module, rseg, &repost_recv_head);
-                break;
+                /**** Send of frag segment completion ****/
+                case OMPI_BTL_USNIC_SEG_FRAG:
+                    assert(IBV_WC_SEND == cwc->opcode);
+                    ompi_btl_usnic_frag_send_complete(module,
+                            (ompi_btl_usnic_frag_segment_t*)seg);
+                    break;
 
-            default:
-                BTL_ERROR(("Unhandled completion opcode %d segment type %d",
-                            cwc->opcode, seg->us_type));
-                break;
-            }
-        }
-        count += num_events;
+                /**** Send of chunk segment completion ****/
+                case OMPI_BTL_USNIC_SEG_CHUNK:
+                    assert(IBV_WC_SEND == cwc->opcode);
+                    ompi_btl_usnic_chunk_send_complete(module,
+                            (ompi_btl_usnic_chunk_segment_t*)seg);
+                    break;
 
-        /* progress sends */
-        ompi_btl_usnic_module_progress_sends(module);
+                /**** Receive completions ****/
+                case OMPI_BTL_USNIC_SEG_RECV:
+                    assert(IBV_WC_RECV == cwc->opcode);
+                    ompi_btl_usnic_recv(module, rseg, &repost_recv_head);
+                    break;
 
-        /* Re-post all the remaining receive buffers */
-        if (OPAL_LIKELY(repost_recv_head)) {
-#if MSGDEBUG
-            /* For the debugging case, check the state of each
-               segment */
-            {
-                struct ibv_recv_wr *wr = repost_recv_head;
-                while (wr) {
-                    seg = (ompi_btl_usnic_recv_segment_t*)(unsigned long)wr->wr_id;
-                    assert(OMPI_BTL_USNIC_SEG_RECV == seg->us_type);
-                    FRAG_HISTORY(frag, "Re-post: ibv_post_recv");
-                    wr = wr->next;
+                default:
+                    BTL_ERROR(("Unhandled completion opcode %d segment type %d",
+                                cwc->opcode, seg->us_type));
+                    break;
                 }
             }
+            count += num_events;
+
+            /* progress sends */
+            ompi_btl_usnic_module_progress_sends(module);
+
+            /* Re-post all the remaining receive buffers */
+            if (OPAL_LIKELY(repost_recv_head)) {
+#if MSGDEBUG
+                /* For the debugging case, check the state of each
+                   segment */
+                {
+                    struct ibv_recv_wr *wr = repost_recv_head;
+                    while (wr) {
+                        seg = (ompi_btl_usnic_recv_segment_t*)(unsigned long)
+                            wr->wr_id;
+                        assert(OMPI_BTL_USNIC_SEG_RECV == seg->us_type);
+                        FRAG_HISTORY(frag, "Re-post: ibv_post_recv");
+                        wr = wr->next;
+                    }
+                }
 #endif
 
-            if (OPAL_UNLIKELY(ibv_post_recv(channel->qp, 
+                if (OPAL_UNLIKELY(ibv_post_recv(channel->qp, 
                                             repost_recv_head, &bad_wr) != 0)) {
-                BTL_ERROR(("error posting recv: %s\n", strerror(errno)));
-                return OMPI_ERROR;
+                    BTL_ERROR(("error posting recv: %s\n", strerror(errno)));
+                    return OMPI_ERROR;
+                }
+                repost_recv_head = NULL;
             }
-            repost_recv_head = NULL;
         }
-
-        channel = &module->data_channel;
-    }
     }
 
     return count;

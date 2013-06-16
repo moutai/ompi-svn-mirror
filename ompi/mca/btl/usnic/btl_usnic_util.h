@@ -14,6 +14,12 @@
 #include "btl_usnic_module.h"
 
 
+/*
+ * Safely (but abnornmally) exit this process without abort()'ing (and
+ * leaving a corefile).
+ */
+void ompi_btl_usnic_exit(void);
+
 void ompi_btl_usnic_sprintf_mac(char *out, const uint8_t mac[6]);
 
 void ompi_btl_usnic_sprintf_gid_mac(char *out, union ibv_gid *gid);

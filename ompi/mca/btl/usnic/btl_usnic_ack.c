@@ -138,7 +138,7 @@ ompi_btl_usnic_handle_ack(
 
         /* perform completion callback for PUT here */
         if (frag->sf_ack_bytes_left == 0 &&
-            frag->sf_dest_addr != NULL) {
+            frag->sf_base.uf_dst_seg[0].seg_addr.pval != NULL) {
 #if MSGDEBUG1
             opal_output(0, "Calling back %p for PUT completion, frag=%p\n", 
                     frag->sf_base.uf_base.des_cbfunc, frag);
@@ -195,7 +195,7 @@ ompi_btl_usnic_ack_send(
     ack->ss_base.us_btl_header->ack_seq =
         endpoint->endpoint_next_contig_seq_to_recv - 1;
 
-    ack->ss_base.us_sg_entry.length = 
+    ack->ss_base.us_sg_entry[0].length = 
         sizeof(ompi_btl_usnic_btl_header_t);
 
 #if MSGDEBUG1
@@ -208,11 +208,11 @@ ompi_btl_usnic_ack_send(
     opal_output(0, "--> Sending ACK wr_id 0x%lx, sg_entry length %d, seq %" UDSEQ " to %s, qp %u", 
                 wr->wr_id, ack->ss_base.us_sg_entry.length,
                 ack->ss_base.us_btl_header->ack_seq, dest_mac,
-                endpoint->endpoint_remote_addr.cmd_qp_num);
+                endpoint->endpoint_remote_addr.qp_num[ack->ss_chanel]);
 #endif
 
     /* send the ACK */
-    ompi_btl_usnic_post_segment(module, endpoint, ack, 1);
+    ompi_btl_usnic_post_segment(module, endpoint, ack);
 
     /* Stats */
     ++module->num_ack_sends;
@@ -228,7 +228,7 @@ ompi_btl_usnic_ack_complete(ompi_btl_usnic_module_t *module,
                                    ompi_btl_usnic_ack_segment_t *ack)
 {
     ompi_btl_usnic_ack_segment_return(module, ack);
-    ++ack->ss_channel->sd_wqe;
+    ++module->mod_channels[ack->ss_channel].sd_wqe;
 }
 
 /*****************************************************************************/

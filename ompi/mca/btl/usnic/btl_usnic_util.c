@@ -10,12 +10,27 @@
 #include "ompi_config.h"
 
 #include <stdio.h>
+#include <unistd.h>
 #include <infiniband/verbs.h>
+
+#include "orte/mca/errmgr/errmgr.h"
 
 #include "ompi/constants.h"
 
 #include "btl_usnic_util.h"
 #include "btl_usnic_if.h"
+
+
+void ompi_btl_usnic_exit(void)
+{
+    orte_errmgr.abort(1, NULL);
+
+    /* If the error manager returns, wait to be killed */
+    while (1) {
+        sleep(99999);
+    }
+}
+
 
 void
 ompi_btl_usnic_dump_hex(uint8_t *addr, int len)

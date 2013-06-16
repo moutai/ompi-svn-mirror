@@ -186,13 +186,17 @@ int ompi_btl_usnic_component_register(void)
                   -1, &val, REGINT_NEG_ONE_OK));
     mca_btl_usnic_component.rd_num = (int32_t) val;
 
+    CHECK(reg_int("prio_sd_num", "maximum priority send descriptors to post (-1 = use default)",
+                  -1, &val, REGINT_NEG_ONE_OK));
+    mca_btl_usnic_component.prio_sd_num = (int32_t) val;
+
+    CHECK(reg_int("prio_rd_num", "number of pre-posted priority receive buffers (-1 = use default)",
+                  -1, &val, REGINT_NEG_ONE_OK));
+    mca_btl_usnic_component.prio_rd_num = (int32_t) val;
+
     CHECK(reg_int("cq_num", "number of completion queue entries (-1 = max supported by the device; will error if (sd_num+rd_num)>cq_num)",
                   -1, &val, REGINT_NEG_ONE_OK));
     mca_btl_usnic_component.cq_num = (int32_t) val;
-    if (0 == mca_btl_usnic_component.cq_num) {
-        mca_btl_usnic_component.cq_num = 
-            mca_btl_usnic_component.rd_num + mca_btl_usnic_component.sd_num;
-    }
 
     CHECK(reg_int("retrans_timeout", "number of microseconds before retransmitting a frame",
                   /* JMS: Was 250,000 -- changed to 100,000 */

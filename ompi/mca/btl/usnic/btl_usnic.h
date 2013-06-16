@@ -139,6 +139,10 @@ typedef struct ompi_btl_usnic_component_t {
     /** max receive descriptors per module */
     int32_t rd_num;
 
+    /** max send/receive desriptors for priority channel */
+    int32_t prio_sd_num;
+    int32_t prio_rd_num;
+
     /** max completion queue entries per module */
     int32_t cq_num;
 

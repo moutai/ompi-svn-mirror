@@ -424,8 +424,12 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
                 if (fip->rfi_data == NULL) {
                     abort();
                 }
+#if MSGDEBUG2
+opal_output(0, "Start large recv to %p, size=%d\n",
+        fip->rfi_data, chunk_hdr->ch_frag_size);
+#endif
             } else {
-#if MSGDEBUG1
+#if MSGDEBUG2
 opal_output(0, "Start PUT to %p\n", chunk_hdr->ch_hdr.put_addr);
 #endif
                 fip->rfi_data = chunk_hdr->ch_hdr.put_addr;
@@ -438,8 +442,8 @@ opal_output(0, "Start PUT to %p\n", chunk_hdr->ch_hdr.put_addr);
             ++module->num_badfrag_recvs;
             goto repost;
         }
-#if MSGDEBUG1
-        opal_output(0, "put_addr=%p, copy_addr=%p, off=%p\n",
+#if MSGDEBUG2
+        opal_output(0, "put_addr=%p, copy_addr=%p, off=%d\n",
                 chunk_hdr->ch_hdr.put_addr,
                 fip->rfi_data+chunk_hdr->ch_frag_offset,
                 chunk_hdr->ch_frag_offset);
@@ -479,9 +483,10 @@ opal_output(0, "Start PUT to %p\n", chunk_hdr->ch_hdr.put_addr);
             if (chunk_hdr->ch_hdr.put_addr == NULL) {
 
                 /* Pass this segment up to the PML */
-#if MSGDEBUG1
-                opal_output(0, "  large FRAG complete, pass up %p, %d bytes\n",
-                        desc.des_dst->seg_addr.pval, desc.des_dst->seg_len);
+#if MSGDEBUG2
+                opal_output(0, "  large FRAG complete, pass up %p, %d bytes, tag=%d\n",
+                        desc.des_dst->seg_addr.pval, desc.des_dst->seg_len,
+                        pml_header->tag);
 #endif
                 reg = mca_btl_base_active_message_trigger + pml_header->tag;
 
@@ -492,7 +497,7 @@ opal_output(0, "Start PUT to %p\n", chunk_hdr->ch_hdr.put_addr);
                 /* free temp buffer for non-put */
                 free(fip->rfi_data);
 
-#if MSGDEBUG1
+#if MSGDEBUG2
             } else {
                 opal_output(0, "PUT complete, suppressing callback\n");
 #endif

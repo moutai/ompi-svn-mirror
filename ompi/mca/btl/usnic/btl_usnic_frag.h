@@ -167,7 +167,8 @@ typedef struct ompi_btl_usnic_segment_t {
 
     ompi_btl_usnic_seg_type_t us_type;
 
-    struct ibv_sge us_sg_entry;
+    /* allow for 2 SG entries */
+    struct ibv_sge us_sg_entry[2];
 
     /* header for chunked frag is different */
     union {
@@ -215,7 +216,8 @@ typedef struct ompi_btl_usnic_send_segment_t {
     struct ibv_send_wr ss_send_desc;
 
     /* channel upon which send was posted */
-    ompi_btl_usnic_channel_t *ss_channel;
+    ompi_btl_usnic_channel_id_t ss_channel;
+    uint32_t ss_flags;
 
     struct ompi_btl_usnic_send_frag_t *ss_parent_frag;
     int ss_hotel_room;          /* current retrans room, or -1 if none */
@@ -235,8 +237,9 @@ typedef struct ompi_btl_usnic_frag_t {
     /* fragment descriptor type */
     ompi_btl_usnic_frag_type_t uf_type;
 
-    /* utility segment */
-    mca_btl_base_segment_t uf_seg;
+    /* utility segments */
+    mca_btl_base_segment_t uf_src_seg[2];
+    mca_btl_base_segment_t uf_dst_seg[1];
 
     /* freelist this came from */
     ompi_free_list_t *uf_freelist;
@@ -249,32 +252,29 @@ typedef struct ompi_btl_usnic_send_frag_t {
     ompi_btl_usnic_frag_t sf_base;
 
     struct mca_btl_base_endpoint_t *sf_endpoint;
-    mca_btl_base_tag_t sf_tag;
+
+    size_t sf_size;            /* total_fragment size (PML + user payload) */
+
+    /* original message data if convertor required */
+    struct opal_convertor_t* sf_convertor;
 
     uint32_t sf_seg_post_cnt;   /* total segs currently posted for this frag */
     size_t sf_ack_bytes_left;   /* bytes remaining to be ACKed */
-
-    char *sf_dest_addr;         /* remote address for emulated PUT */
-
 
     struct ompi_btl_usnic_send_frag_t *sf_next;
 } ompi_btl_usnic_send_frag_t;
 
 /**
  * Descriptor for a large fragment
+ * Large fragment uses two SG entries - one points to PML header,
+ * other points to data.
  */
 typedef struct ompi_btl_usnic_large_send_frag_t {
     ompi_btl_usnic_send_frag_t lsf_base;
 
     char lsf_pml_header[64];    /* space for PML header */
 
-    /* original message data */
-    struct opal_convertor_t* lsf_convertor;
-    char *lsf_data_ptr;         /* pointer for contiguous data */
-    size_t lsf_reserve;         /* bytes to reserve for PML header */
-
     uint32_t lsf_frag_id;       /* fragment ID for reassembly */
-    size_t lsf_size;            /* total_fragment size */
     size_t lsf_cur_offset;      /* current offset into message */
     size_t lsf_bytes_left;      /* bytes remaining to send */
     
@@ -282,6 +282,14 @@ typedef struct ompi_btl_usnic_large_send_frag_t {
 
 /**
  * small send fragment
+ * Small send will optimistically use 2 SG entries in hopes of performing
+ * an inline send, but will convert to a single SG entry is inline cannot
+ * be done and data must be copied.  
+ * First segment will point to registered memory of associated segment to
+ * hold BTL and PML headers.
+ * Second segment will point directly to user data.  If inlining fails, we
+ * will copy user data into the registered memory after the PML header and 
+ * convert to a single segment.
  */
 typedef struct ompi_btl_usnic_small_send_frag_t {
     ompi_btl_usnic_send_frag_t ssf_base;
@@ -331,6 +339,9 @@ ompi_btl_usnic_small_send_frag_alloc(ompi_btl_usnic_module_t *module)
 
     /* this belongs in constructor... */
     frag->ssf_base.sf_base.uf_freelist = &(module->small_send_frags);
+
+    /* always clear flag */
+    frag->ssf_segment.ss_send_desc.send_flags = IBV_SEND_SIGNALED;
 
     assert(frag);
     assert(OMPI_BTL_USNIC_FRAG_SMALL_SEND == frag->ssf_base.sf_base.uf_type);
@@ -447,6 +458,7 @@ ompi_btl_usnic_chunk_segment_alloc(
     }
 
     seg = (ompi_btl_usnic_send_segment_t*) item;
+    seg->ss_channel = USNIC_DATA_CHANNEL;
 
     assert(seg);
     assert(OMPI_BTL_USNIC_SEG_CHUNK == seg->ss_base.us_type);
@@ -482,6 +494,7 @@ ompi_btl_usnic_ack_segment_alloc(ompi_btl_usnic_module_t *module)
     }
 
     ack = (ompi_btl_usnic_ack_segment_t*) item;
+    ack->ss_channel = USNIC_PRIORITY_CHANNEL;
 
     assert(ack);
     assert(OMPI_BTL_USNIC_SEG_ACK == ack->ss_base.us_type);

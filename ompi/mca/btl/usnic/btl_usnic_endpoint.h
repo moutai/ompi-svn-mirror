@@ -47,10 +47,17 @@ struct ompi_btl_usnic_send_segment_t;
 #define WINDOW_OPEN(E) ((E)->endpoint_next_seq_to_send < \
         ((E)->endpoint_ack_seq_rcvd + WINDOW_SIZE))
 
+/*
+ * Channel IDs
+ */
+typedef enum ompi_btl_usnic_channel_id_t {
+    USNIC_PRIORITY_CHANNEL,
+    USNIC_DATA_CHANNEL,
+    USNIC_NUM_CHANNELS
+} ompi_btl_usnic_channel_id_t;
 
 typedef struct ompi_btl_usnic_addr_t {
-    uint32_t data_qp_num;
-    uint32_t cmd_qp_num;
+    uint32_t qp_num[USNIC_NUM_CHANNELS];
     union ibv_gid gid;
     uint32_t ipv4_addr;
     uint32_t cidrmask;
@@ -148,13 +155,6 @@ typedef struct mca_btl_base_endpoint_t {
 
 typedef mca_btl_base_endpoint_t ompi_btl_usnic_endpoint_t;
 OBJ_CLASS_DECLARATION(ompi_btl_usnic_endpoint_t);
-
-
-/*
- * Post a send to the verbs work queue
- */
-void ompi_btl_usnic_endpoint_send_segment(struct ompi_btl_usnic_module_t *module,
-                                          struct ompi_btl_usnic_send_segment_t *sseg);
 
 END_C_DECLS
 #endif

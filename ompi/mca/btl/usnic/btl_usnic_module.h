@@ -39,15 +39,21 @@ BEGIN_C_DECLS
  */
 struct ompi_btl_usnic_send_segment_t;
 
-
 /*
- * Abstraction of a set of IB queus
+ * Abstraction of a set of IB queues
  */
 typedef struct ompi_btl_usnic_channel_t {
     struct ibv_cq *cq;
 
+    int chan_mtu;
+    int chan_rd_num;
+    int chan_sd_num;
+
     /** available send WQ entries */
     int32_t sd_wqe;
+
+    /* fastsend enabled if sd_wqe >= fastsend_wqe_thresh */
+    int fastsend_wqe_thresh;
 
     /** queue pair */
     struct ibv_qp* qp;
@@ -88,6 +94,8 @@ typedef struct ompi_btl_usnic_module_t {
     int sd_num;
     int rd_num;
     int cq_num;
+    int prio_sd_num;
+    int prio_rd_num;
 
     /* 
      * Fragments larger than max_frag_payload will be broken up into
@@ -95,8 +103,10 @@ typedef struct ompi_btl_usnic_module_t {
      * segment is slightly less than what can be held in frag segment due
      * to fragment reassembly info.
      */
+    int tiny_mtu;
     size_t max_frag_payload;    /* most that fits in a frag segment */
     size_t max_chunk_payload;   /* most that can fit in chunk segment */
+    size_t max_tiny_payload;    /* threshold for using inline send */
 
     /** Hash table to keep track of senders */
     opal_hash_table_t senders;
@@ -125,11 +135,8 @@ typedef struct ompi_btl_usnic_module_t {
     /* this list uses endpoint->endpoint_ack_li */
     opal_list_t endpoints_that_need_acks;
 
-    /* we use two IB queue pairs, each with its own CQ.  
-     * We call a CQ + QP a "channel"
-     */
-    ompi_btl_usnic_channel_t data_channel;
-    ompi_btl_usnic_channel_t cmd_channel;
+    /* abstract queue-pairs into channels */
+    ompi_btl_usnic_channel_t mod_channels[USNIC_NUM_CHANNELS];
 
     uint32_t qp_max_inline;
 
