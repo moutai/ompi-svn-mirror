@@ -145,7 +145,7 @@ static int usnic_add_procs(struct mca_btl_base_module_t* base_module,
         if (NULL == usnic_endpoint->endpoint_remote_ah) {
             OBJ_RELEASE(usnic_endpoint);
             OBJ_RELEASE(usnic_proc);
-            orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+            orte_show_help("help-mpi-btl-usnic.txt", "ibv API failed",
                            true, 
                            orte_process_info.nodename,
                            ibv_get_device_name(module->device), 
@@ -1339,13 +1339,13 @@ init_qp(
     
     channel->qp = ibv_create_qp(module->pd, &qp_init_attr);
     if (NULL == channel->qp) {
-        orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+        orte_show_help("help-mpi-btl-usnic.txt", "ibv API failed",
                        true, 
                        orte_process_info.nodename,
                        ibv_get_device_name(module->device), 
                        module->port_num,
                        "ibv_create_qp()", __FILE__, __LINE__,
-                       "Failed to create a USNIC QP; check CIMC/UCSM to ensure enough USNIC devices are provisioned");
+                       "Failed to create a USNIC queue pair; check CIMC/UCSM to ensure enough USNIC devices are provisioned, and check Linux memlock limits");
         return OMPI_ERR_OUT_OF_RESOURCE;
     }
 
@@ -1359,13 +1359,13 @@ init_qp(
 
     if (ibv_modify_qp(channel->qp, &qp_attr,
                       IBV_QP_STATE | IBV_QP_PORT)) {
-        orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+        orte_show_help("help-mpi-btl-usnic.txt", "ibv API failed",
                        true, 
                        orte_process_info.nodename,
                        ibv_get_device_name(module->device),
                        module->port_num,
                        "ibv_modify_qp()", __FILE__, __LINE__,
-                       "Failed to modify an existing QP");
+                       "Failed to modify an existing queue pair");
         return OMPI_ERR_TEMP_OUT_OF_RESOURCE;
     }
 
@@ -1374,13 +1374,13 @@ init_qp(
     memset(&qp_init_attr, 0, sizeof(qp_init_attr));
     if (ibv_query_qp(channel->qp, &qp_attr, IBV_QP_CAP,
                      &qp_init_attr) != 0) {
-        orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+        orte_show_help("help-mpi-btl-usnic.txt", "ibv API failed",
                        true, 
                        orte_process_info.nodename,
                        ibv_get_device_name(module->device), 
                        module->port_num,
                        "ibv_query_qp()", __FILE__, __LINE__,
-                       "Failed to query an existing QP");
+                       "Failed to query an existing queue pair");
         return OMPI_ERR_TEMP_OUT_OF_RESOURCE;
     }
 
@@ -1483,13 +1483,13 @@ ompi_btl_usnic_channel_init(
     /* Create the completion queue */
     channel->cq = ibv_create_cq(ctx, module->cq_num, NULL, NULL, 0);
     if (NULL == channel->cq) {
-        orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+        orte_show_help("help-mpi-btl-usnic.txt", "ibv API failed",
                        true, 
                        orte_process_info.nodename,
                        ibv_get_device_name(module->device),
                        module->port_num,
                        "ibv_create_cq()", __FILE__, __LINE__,
-                       "Failed to create a CQ");
+                       "Failed to create a USNIC completion queue; check CIMC/UCSM to ensure enough USNIC devices are provisioned and check Linux memlock limits");
         goto error;
     }
 
@@ -1535,7 +1535,7 @@ ompi_btl_usnic_channel_init(
         rseg->rs_recv_desc.next = NULL;
 
         if (ibv_post_recv(channel->qp, &rseg->rs_recv_desc, &bad_wr)) {
-            orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+            orte_show_help("help-mpi-btl-usnic.txt", "ibv API failed",
                            true, 
                            orte_process_info.nodename,
                            ibv_get_device_name(module->device),
@@ -1576,7 +1576,7 @@ int ompi_btl_usnic_module_init(ompi_btl_usnic_module_t *module)
     /* Get a PD */
     module->pd = ibv_alloc_pd(ctx);
     if (NULL == module->pd) {
-        orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+        orte_show_help("help-mpi-btl-usnic.txt", "ibv API failed",
                        true, 
                        orte_process_info.nodename,
                        ibv_get_device_name(module->device), 
@@ -1595,13 +1595,13 @@ int ompi_btl_usnic_module_init(ompi_btl_usnic_module_t *module)
         mca_mpool_base_module_create(mca_btl_usnic_component.usnic_mpool_name,
                                      &module->super, &mpool_resources);
     if (NULL == module->super.btl_mpool) {
-        orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+        orte_show_help("help-mpi-btl-usnic.txt", "ibv API failed",
                        true, 
                        orte_process_info.nodename,
                        ibv_get_device_name(module->device),
                        module->port_num,
                        "create mpool", __FILE__, __LINE__,
-                       "Failed to allocate registered memory");
+                       "Failed to allocate registered memory; check Linux memlock limits");
         goto dealloc_pd;
     }
 

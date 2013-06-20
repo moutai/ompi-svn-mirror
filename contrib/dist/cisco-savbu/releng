@@ -220,6 +220,22 @@ open(V, ">VERSION");
 print V $str;
 close(V);
 
+# Set the default "btl" MCA parameter to "usnic,sm,self" in
+# openmpi-mca-params.conf.
+my $paramfile = "opal/etc/openmpi-mca-params.conf";
+do_command("git checkout $paramfile");
+open(OUT, ">>$paramfile")
+    || die "Can't open $paramfile";
+print OUT "
+########################################################################
+# Inserted by Cisco USNIC distribition of Open MPI to force the usnic
+# BTL to be used by default (and abort / not failover to TCP if the
+# USNIC BTL can't be used for some readon).
+
+btl = usnic,sm,self
+########################################################################\n";
+close(OUT);
+
 # Autogen, configure, make dist.  Note that Open MPI changed from
 # autogen.sh to autogen.pl after the v1.6 series; so future-proof this
 # script a little and search for .pl first.
@@ -316,8 +332,8 @@ do_command("rpmbuild $rpmbuild_options -bb $specdest");
 do_command("mv $prev_rpmmacros $ENV{HOME}/.rpmmacros")
     if (defined($prev_rpmmacros));
 
-# Restore VERSION
-do_command("git checkout VERSION");
+# Restore VERSION and openmpi-mca-params.conf
+do_command("git checkout VERSION $paramfile");
 
 # Success
 print "=== Success:\n";

@@ -37,6 +37,8 @@
 #include <errno.h>
 #include <infiniband/verbs.h>
 #include <unistd.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #include "opal_stdint.h"
 #include "opal/prefetch.h"
@@ -195,6 +197,48 @@ static int usnic_modex_send(void)
 
 
 /*
+ * See if our memlock limit is >64K.  64K is the RHEL default memlock
+ * limit; this check is a first-line-of-defense hueristic to see if
+ * the user has set the memlock limit to *something*.
+ *
+ * We have other checks elsewhere (e.g., to ensure that QPs are able
+ * to be allocated -- which also require registered memory -- and to
+ * ensure that receive buffers can be registered, etc.), but this is a
+ * good first check to ensure that a default OS case is satisfied.
+ */
+static int check_reg_mem_basics(void)
+{
+#if HAVE_DECL_RLIMIT_MEMLOCK
+    int ret = OMPI_SUCCESS;
+    struct rlimit limit;
+    char *str_limit = NULL;
+
+    ret = getrlimit(RLIMIT_MEMLOCK, &limit);
+    if (0 == ret) {
+        if ((long) limit.rlim_cur > (64 * 1024) ||
+            limit.rlim_cur == RLIM_INFINITY) {
+            return OMPI_SUCCESS;
+	} else {
+            asprintf(&str_limit, "%ld", (long)limit.rlim_cur);
+	}
+    } else {
+        asprintf(&str_limit, "Unknown");
+    }
+
+    orte_show_help("help-mpi-btl-usnic.txt", "check_reg_mem_basics fail",
+                   true,
+                   orte_process_info.nodename,
+                   str_limit);
+
+    return OMPI_ERR_OUT_OF_RESOURCE;
+#else
+    /* If we don't have RLIMIT_MEMLOCK, then just bypass this
+       safety/hueristic check. */
+    return OMPI_SUCCESS;
+#endif
+}
+
+/*
  *  UD component initialization:
  *  (1) read interface list from kernel and compare against component
  *      parameters then create a BTL instance for selected interfaces
@@ -218,6 +262,15 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
 
     /* Currently refuse to run if MPI_THREAD_MULTIPLE is enabled */
     if (ompi_mpi_thread_multiple && !mca_btl_base_thread_multiple_override) {
+        return NULL;
+    }
+
+    /* Per https://svn.open-mpi.org/trac/ompi/ticket/1305, check to
+       see if $sysfsdir/class/infiniband exists.  If it does not,
+       assume that the RDMA hardware drivers are not loaded, and
+       therefore we don't want OpenFabrics verbs support in this OMPI
+       job.  No need to print a warning. */
+    if (!ompi_common_verbs_check_basics()) {
         return NULL;
     }
 
@@ -247,6 +300,13 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
                                      mca_btl_base_output);
     if (NULL == port_list || 0 == opal_list_get_size(port_list)) {
         mca_btl_base_error_no_nics("USNIC", "device");
+        btls = NULL;
+        goto free_include_list;
+    }
+
+    /* Do quick sanity check to ensure that we can lock memory (which
+       is required for verbs registered memory). */
+    if (OMPI_SUCCESS != check_reg_mem_basics()) {
         btls = NULL;
         goto free_include_list;
     }
@@ -332,7 +392,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
                                port->port_num,
                                mca_btl_usnic_component.gid_index, &gid)) {
             opal_memchecker_base_mem_defined(&gid, sizeof(gid));
-            orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+            orte_show_help("help-mpi-btl-usnic.txt", "ibv API failed",
                            true, 
                            orte_process_info.nodename,
                            ibv_get_device_name(module->device),
@@ -398,13 +458,13 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
 
         /* Query this device */
         if (0 != ibv_query_device(module->device_context, &device_attr)) {
-            orte_show_help("help-mpi-btl-usnic.txt", "ibv_FOO failed",
+            orte_show_help("help-mpi-btl-usnic.txt", "ibv API failed",
                            true, 
                            orte_process_info.nodename,
                            ibv_get_device_name(module->device),
                            module->port_num,
                            "ibv_query_device", __FILE__, __LINE__,
-                           "Failed to query USNIC device");
+                           "Failed to query USNIC device; is the usnic_verbs Linux kernel module loaded?");
             --mca_btl_usnic_component.num_modules;
             --i;
             continue;

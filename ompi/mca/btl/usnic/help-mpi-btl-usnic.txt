@@ -10,11 +10,17 @@
 #
 # This is the US/English help file for the Open MPI usnic BTL.
 #
-[ibv_FOO failed]
+[ibv API failed]
 Open MPI failed a basic verbs operation on a Cisco USNIC device.  This
 is highly unusual and shouldn't happen.  It suggests that there may be
 something wrong with the USNIC or OpenFabrics configuration on this
 server.
+
+In addition to any suggestions listed below, you might want to check
+the Linux "memlock" limits on your system (they should probably be
+"unlimited").  See this FAQ entry for details:
+
+    http://www.open-mpi.org/faq/?category=openfabrics#ib-locked-pages
 
 Open MPI will skip this device/port in the usnic BTL, which may result
 in either lower performance or your job aborting.
@@ -82,3 +88,17 @@ in either lower performance or your job aborting.
   Max payload allowed:   %d
   Specified eager_limit: %d
 #
+[check_reg_mem_basics fail]
+The USNIC BTL failed to initialize while trying to register some
+memory.  This typically can indicate that the "memlock" limits are set
+too low.  For most HPC installations, the memlock limits should be set
+to "unlimited".  The failure occured here:
+
+  Local host:    %s
+  Memlock limit: %s
+
+You may need to consult with your system administrator to get this
+problem fixed.  This FAQ entry on the Open MPI web site may also be
+helpful:
+
+    http://www.open-mpi.org/faq/?category=openfabrics#ib-locked-pages
