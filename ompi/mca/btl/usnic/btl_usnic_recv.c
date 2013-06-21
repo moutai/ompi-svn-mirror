@@ -420,7 +420,29 @@ void ompi_btl_usnic_recv(ompi_btl_usnic_module_t *module,
             fip->rfi_frag_id = chunk_hdr->ch_frag_id;
             fip->rfi_frag_size = chunk_hdr->ch_frag_size;
             if (chunk_hdr->ch_hdr.put_addr == NULL) {
-                fip->rfi_data = malloc(chunk_hdr->ch_frag_size);
+                int pool;
+
+                fip->rfi_data = NULL;
+
+                /* See which data pool this should come from,
+                 * or if it should be malloc()ed
+                 */
+                pool = fls(chunk_hdr->ch_frag_size-1);
+                if (pool >= module->first_pool &&
+                        pool <= module->last_pool) {
+                    ompi_free_list_item_t* item;
+                    int rc;
+                    OMPI_FREE_LIST_GET(&module->module_recv_buffers[pool],
+                            item, rc);
+                    if (rc == OMPI_SUCCESS) {
+                        fip->rfi_data = (char *)item;
+                        fip->rfi_data_pool = pool;
+                    }
+                }
+                if (fip->rfi_data == NULL) {
+                    fip->rfi_data = malloc(chunk_hdr->ch_frag_size);
+                    fip->rfi_data_pool = 0;
+                }
                 if (fip->rfi_data == NULL) {
                     abort();
                 }
@@ -442,7 +464,7 @@ opal_output(0, "Start PUT to %p\n", chunk_hdr->ch_hdr.put_addr);
             ++module->num_badfrag_recvs;
             goto repost;
         }
-#if MSGDEBUG2
+#if MSGDEBUG1
         opal_output(0, "put_addr=%p, copy_addr=%p, off=%d\n",
                 chunk_hdr->ch_hdr.put_addr,
                 fip->rfi_data+chunk_hdr->ch_frag_offset,
@@ -495,7 +517,13 @@ opal_output(0, "Start PUT to %p\n", chunk_hdr->ch_hdr.put_addr);
                         &desc, reg->cbdata);
 
                 /* free temp buffer for non-put */
-                free(fip->rfi_data);
+                if (fip->rfi_data_pool == 0) {
+                    free(fip->rfi_data);
+                } else {
+                    OMPI_FREE_LIST_RETURN(
+                            &module->module_recv_buffers[fip->rfi_data_pool],
+                            (ompi_free_list_item_t *)fip->rfi_data);
+                }
 
 #if MSGDEBUG2
             } else {
@@ -505,6 +533,9 @@ opal_output(0, "Start PUT to %p\n", chunk_hdr->ch_hdr.put_addr);
 
             /* release the fragment ID */
             fip->rfi_frag_id = 0;
+
+            /* force immediate ACK */
+            endpoint->endpoint_acktime = 0;
         }
         goto repost;
     }

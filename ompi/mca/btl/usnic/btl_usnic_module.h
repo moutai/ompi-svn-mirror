@@ -120,6 +120,11 @@ typedef struct ompi_btl_usnic_module_t {
     ompi_free_list_t put_dest_frags;
     ompi_free_list_t chunk_segs;
 
+    /** receive buffer pools */
+    int first_pool;
+    int last_pool;
+    ompi_free_list_t *module_recv_buffers;
+
     /** list of endpoints with data to send */
     /* this list uses base endpoint ptr */
     opal_list_t endpoints_with_sends;

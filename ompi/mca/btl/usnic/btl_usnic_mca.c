@@ -205,8 +205,11 @@ int ompi_btl_usnic_component_register(void)
 
     CHECK(reg_int("eager_limit", "Eager send limit.  If 0, use the device's default.",
                   USNIC_DFLT_EAGER_LIMIT, &val, REGINT_GE_ZERO));
-    ompi_btl_usnic_module_template.super.btl_eager_limit = 
-        ompi_btl_usnic_module_template.super.btl_rndv_eager_limit = val;
+    ompi_btl_usnic_module_template.super.btl_eager_limit = val;
+
+    CHECK(reg_int("rndv_eager_limit", "Eager rendezvous limit.  If 0, use the device MTU.",
+                  0, &val, REGINT_GE_ZERO));
+    ompi_btl_usnic_module_template.super.btl_rndv_eager_limit = val;
 
     CHECK(reg_int("max_send_size", "Max send size.  If 0, use device default.",
                   USNIC_DFLT_MAX_SEND, &val, REGINT_GE_ZERO));

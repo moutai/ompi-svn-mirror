@@ -90,6 +90,7 @@ typedef struct ompi_btl_usnic_rx_frag_info_t {
     uint32_t    rfi_frag_size;  /* bytes in this fragment */
     uint32_t    rfi_bytes_left; /* bytes remaining to RX in fragment */
     char       *rfi_data;       /* pointer to assembly area */
+    int         rfi_data_pool;  /* if 0, data malloced, else rx buf pool */
 } ompi_btl_usnic_rx_frag_info_t;
 
 /**

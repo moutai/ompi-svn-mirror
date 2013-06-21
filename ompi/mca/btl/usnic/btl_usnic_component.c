@@ -537,20 +537,26 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
             sizeof(ompi_btl_usnic_protocol_header_t) -
             sizeof(ompi_btl_usnic_btl_header_t);
 
-        /* If the eager/rndv limits are 0, initialize it to default */
+        /* If the eager send limit is 0, initialize it to default */
         if (0 == module->super.btl_eager_limit) {
+            /* 150k for 1 NIC, 25k for >1 NIC */
             module->super.btl_eager_limit = USNIC_DFLT_EAGER_LIMIT;
         }
-        module->super.btl_rndv_eager_limit = module->super.btl_eager_limit;
 
         opal_output_verbose(5, mca_btl_base_output,
                             "btl:usnic: eager limit %s:%d = %" PRIsize_t,
                             port->device->device_name, port->port_num,
                             module->super.btl_eager_limit);
 
+        /* If the eager rndv limit is 0, initialize it to default */
+        if (0 == module->super.btl_rndv_eager_limit) {
+            module->super.btl_rndv_eager_limit = 500;
+        }
 
-        /* Set rndv_eager_limit to be the same as the eager limit */
-        module->super.btl_rndv_eager_limit = module->super.btl_eager_limit;
+        opal_output_verbose(5, mca_btl_base_output,
+                            "btl:usnic: eager rndv limit %s:%d = %" PRIsize_t,
+                            port->device->device_name, port->port_num,
+                            module->super.btl_rndv_eager_limit);
 
         /* send size is unlimited, we handle fragmentation */
         if (module->super.btl_max_send_size == 0) {

@@ -1711,6 +1711,29 @@ int ompi_btl_usnic_module_init(ompi_btl_usnic_module_t *module)
                             module->sd_num / 2,
                             module->super.btl_mpool);
 
+    /*
+     * Initialize pools of large recv buffers
+     */
+    module->first_pool = 16;
+    module->last_pool = fls(module->super.btl_eager_limit-1);
+    module->module_recv_buffers = calloc(module->last_pool+1,
+            sizeof(ompi_free_list_t));
+    assert(module->module_recv_buffers != NULL);
+    for (i=module->first_pool; i<=module->last_pool; ++i) {
+        module->module_recv_buffers[i].ctx = module;
+        OBJ_CONSTRUCT(&module->module_recv_buffers[i], ompi_free_list_t);
+        ompi_free_list_init_new(&module->module_recv_buffers[i],
+                            1 << i,
+                            opal_cache_line_size,
+                            OBJ_CLASS(ompi_btl_usnic_large_send_frag_t),
+                            0,  /* payload size */
+                            0,  /* payload align */
+                            8,
+                            128,
+                            8,
+                            NULL);
+    }
+
     module->all_endpoints = NULL;
     module->num_endpoints = 0;
     if (mca_btl_usnic_component.stats_enabled) {
