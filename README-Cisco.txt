@@ -61,8 +61,7 @@ choose a different installation prefix instead of the default
           --define 'prefix /shared/apps/openmpi' \
           --define 'mflags -j32'
 
-In Red Hat 6.x, the resulting binary RPM can usually be found under
-$HOME/rpmbuild/RPMS, and can be installed via the instructions listed
+The resulting binary RPM can be installed via the instructions listed
 above.
 
 Uninstalling the binary RPM:
