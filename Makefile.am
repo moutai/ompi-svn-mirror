@@ -18,7 +18,7 @@
 #
 
 SUBDIRS = config contrib $(MCA_PROJECT_SUBDIRS) test
-EXTRA_DIST = README INSTALL VERSION Doxyfile LICENSE autogen.sh CMakeLists.txt README.WINDOWS.txt
+EXTRA_DIST = README INSTALL VERSION Doxyfile LICENSE autogen.sh CMakeLists.txt README.WINDOWS.txt README-Cisco.txt KNOWN_ISSUES-Cisco.txt
 
 include examples/Makefile.include
 
