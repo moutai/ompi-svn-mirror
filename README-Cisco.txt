@@ -14,6 +14,9 @@ Cisco is releasing this package because the Open MPI 1.6.x series is
 Cisco anticipates upstreaming the usNIC Open MPI support in future
 Open MPI "feature" releases.
 
+See the KNOWN_ISSUES-Cisco.txt file for the known issues with this
+release.
+
 Prerequisites:
 ==============
 
@@ -28,7 +31,7 @@ Userspace Libraries:
 Installing the binary RPM:
 ==========================
 
-1) Install the openmpi RPM (requires administrative privileges):
+Install the openmpi RPM (requires administrative privileges):
 
    Red Hat:
    # rpm -Uvh openmpi-<version>-1.x86_64.rpm
@@ -65,7 +68,7 @@ above.
 Uninstalling the binary RPM:
 ============================
 
-1) Uninstall using (requires administrative privileges):
+Uninstall using (requires administrative privileges):
 
     Red Hat:
     # rpm -e openmpi
