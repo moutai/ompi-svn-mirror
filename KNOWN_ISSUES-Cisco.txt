@@ -1,0 +1,25 @@
+Open MPI 1.6.x with the Cisco usNIC BTL MPI Transport
+=====================================================
+
+Known issues:
+=============
+
+usNIC transport does not route across L3 IP networks
+-----------------------------------------------------------------
+Symptom:
+Open MPI jobs will fail to run on servers that do not share at least
+one usNIC interface that is on a common IP subnet.
+
+Root cause:
+The usNIC wire protocol is currently based on L2 Ethernet frames; it
+does not include IP encapsulation, and therefore cannot route across
+IP subnet boundaries.
+
+Workaround:
+There are two workarounds:
+1. Ensure that all servers used in a single MPI job have at least one
+   usNIC interface in a common IP subnet.
+2. Explicitly force the use of the TCP-based MPI transport via the
+   "btl" run-time MCA parameter:
+
+      $ mpirun --mca btl tcp,usnic,sm,self ...
