@@ -388,31 +388,37 @@ static int btl_usnic_opal_ifinit(void)
             
             /* see if we like this entry */
             if (AF_INET != ifr->ifr_addr.sa_family) {
+                OBJ_RELEASE(intf);
                 continue;
             }
             
             if (ioctl(sd, SIOCGIFFLAGS, ifr) < 0) {
                 opal_output(0, "btl_usnic_opal_ifinit: ioctl(SIOCGIFFLAGS) failed with errno=%d", errno);
+                OBJ_RELEASE(intf);
                 continue;
             }
             if ((ifr->ifr_flags & IFF_UP) == 0) {
+                OBJ_RELEASE(intf);
                 continue;
             }
 #ifdef IFF_SLAVE
             /* Is this a slave to a load balancer or bonded channel?
                If so, don't use it -- pick up the master instead */
             if ((ifr->ifr_flags & IFF_SLAVE) != 0) {
+                OBJ_RELEASE(intf);
                 continue;
             }
 #endif
 #if 0
             if ((ifr->ifr_flags & IFF_LOOPBACK) != 0) {
+                OBJ_RELEASE(intf);
                 continue;
             }
 #endif
             
             /* copy entry over into our data structure */
-            strcpy(intf->if_name, ifr->ifr_name);
+            memset(intf->if_name, 0, sizeof(intf->if_name));
+            strncpy(intf->if_name, ifr->ifr_name, sizeof(intf->if_name) - 1);
             intf->if_flags = ifr->ifr_flags;
             
             /* every new address gets its own internal if_index */
@@ -424,6 +430,7 @@ static int btl_usnic_opal_ifinit(void)
 #else
             if (ioctl(sd, SIOCGIFINDEX, ifr) < 0) {
                 opal_output(0,"btl_usnic_opal_ifinit: ioctl(SIOCGIFINDEX) failed with errno=%d", errno);
+                OBJ_RELEASE(intf);
                 continue;
             }
 #if defined(ifr_ifindex)
@@ -439,9 +446,11 @@ static int btl_usnic_opal_ifinit(void)
                instead */
             if (ioctl(sd, SIOCGIFADDR, ifr) < 0) {
                 opal_output(0, "btl_usnic_opal_ifinit: ioctl(SIOCGIFADDR) failed with errno=%d", errno);
+                OBJ_RELEASE(intf);
                 break;
             }
             if (AF_INET != ifr->ifr_addr.sa_family) {
+                OBJ_RELEASE(intf);
                 continue;
             }
             
@@ -450,6 +459,7 @@ static int btl_usnic_opal_ifinit(void)
             
             if (ioctl(sd, SIOCGIFNETMASK, ifr) < 0) {
                 opal_output(0, "btl_usnic_opal_ifinit: ioctl(SIOCGIFNETMASK) failed with errno=%d", errno);
+                OBJ_RELEASE(intf);
                 continue;
             }
             
@@ -460,6 +470,7 @@ static int btl_usnic_opal_ifinit(void)
             /* get the MAC address */
             if (ioctl(sd, SIOCGIFHWADDR, ifr) < 0) {
                 opal_output(0, "btl_usnic_opal_ifinit: ioctl(SIOCGIFHWADDR) failed with errno=%d", errno);
+                OBJ_RELEASE(intf);
                 break;
             }
             memcpy(intf->if_mac, ifr->ifr_hwaddr.sa_data, 6);
@@ -472,6 +483,7 @@ static int btl_usnic_opal_ifinit(void)
             /* get the MTU */
             if (ioctl(sd, SIOCGIFMTU, ifr) < 0) {
                 opal_output(0, "btl_usnic_opal_ifinit: ioctl(SIOCGIFMTU) failed with errno=%d", errno);
+                OBJ_RELEASE(intf);
                 break;
             }
             intf->if_mtu = ifr->ifr_mtu;
@@ -1431,6 +1443,7 @@ btl_usnic_opal_iftupletoaddr(char *inaddr, uint32_t *net, uint32_t *mask)
                 } else {
                     opal_output(0, "btl_usnic_opal_iftupletoaddr: unknown mask");
                     free(addr);
+                    opal_argv_free(tuple);
                     return OPAL_ERROR;
                 }
             }
