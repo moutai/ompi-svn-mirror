@@ -671,7 +671,7 @@ static void usnic_stats_callback(int fd, short flags, void *arg)
                 module->pml_module_sends - module->pml_send_callbacks);
     }
 
-    strncat(str, tmp, sizeof(str));
+    strncat(str, tmp, sizeof(str) - strlen(str) - 1);
     opal_output(0, str);
 
     if (mca_btl_usnic_component.stats_relative) {
