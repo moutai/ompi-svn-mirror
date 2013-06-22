@@ -105,15 +105,14 @@ OBJ_CLASS_INSTANCE(ompi_btl_usnic_proc_t,
  */
 void ompi_btl_usnic_proc_finalize(void)
 {
-    ompi_btl_usnic_proc_t *usnic_proc, *next;
+    ompi_btl_usnic_proc_t *usnic_proc;
 
     for (usnic_proc = (ompi_btl_usnic_proc_t*)
-             opal_list_get_first(&mca_btl_usnic_component.usnic_procs);
-         usnic_proc != (ompi_btl_usnic_proc_t*)
-             opal_list_get_end(&mca_btl_usnic_component.usnic_procs); ) {
-        next  = (ompi_btl_usnic_proc_t*) opal_list_get_next(usnic_proc);
+             opal_list_remove_first(&mca_btl_usnic_component.usnic_procs);
+         NULL != usnic_proc;
+         usnic_proc = (ompi_btl_usnic_proc_t*)
+             opal_list_remove_first(&mca_btl_usnic_component.usnic_procs)) {
         OBJ_RELEASE(usnic_proc);
-        usnic_proc = next;
     }
 }
 
