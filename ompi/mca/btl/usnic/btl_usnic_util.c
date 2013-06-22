@@ -36,17 +36,27 @@ void
 ompi_btl_usnic_dump_hex(uint8_t *addr, int len)
 {
     char buf[128];
-    int i;
+    size_t bufspace;
+    int i, ret;
     char *p;
     uint32_t sum=0;
 
     p = buf;
+    memset(buf, 0, sizeof(buf));
+    bufspace = sizeof(buf) - 1;
+
     for (i=0; i<len; ++i) {
-        p += sprintf(p, "%02x ", addr[i]);
+        ret = snprintf(p, bufspace, "%02x ", addr[i]);
+        p += ret;
+        bufspace -= ret;
+
         sum += addr[i];
         if ((i&15) == 15) {
             opal_output(0, "%4x: %s\n", i&~15, buf);
+
             p = buf;
+            memset(buf, 0, sizeof(buf));
+            bufspace = sizeof(buf) - 1;
         }
     }
     if ((i&15) != 0) {
