@@ -18,16 +18,18 @@ my $ok = Getopt::Long::GetOptions("build=s" => \$build_arg,
                                   "debug!" => \$debug_arg,
                                   "help|h" => \$help_arg);
 
-$help_arg = 1
-    if (!$ok);
-$ok = 1
-    if (!defined($build_arg));
+my $ret = 0;
+if (!$ok || 
+    (!defined($build_arg) && !$help_arg)) {
+    $help_arg = 1;
+    $ret = 1;
+}
 if ($help_arg) {
     print "$0 --build=BUILD_ID
 
 --build=BUILD_ID Build ID to check (e.g., 30)
 --help           This message\n";
-    exit($ok);
+    exit($ret);
 }
 
 #--------------------------------------------------------------------------
@@ -164,8 +166,25 @@ sub do_command {
 
 #--------------------------------------------------------------------------
 
+# Run ompi_info; extract its git hash.  
+my $ompi_git_hash;
+$ret = do_command("ompi_info --parsable");
+foreach my $line (@{$ret->{stdout}}) {
+    chomp($line);
+    # Future proof the script a bit: handle both the v1.6 series
+    # output and the v1.7 series/beyond output.
+    if ($line =~ m/^ompi:version:svn:git_(.+)$/ ||
+        $line =~ m/^ompi:version:repo:git_(.+)$/) {
+        $ompi_git_hash = $1;
+        last;
+    }
+}
+cleanup_and_exit(1, "Could not find ompi_info git version -- is the right OMPI install in your PATH?\n")
+    if (!defined($ompi_git_hash));
+print "==> Found OMPI git hash: $ompi_git_hash\n";
+
 # Get a git checkout
-print "==> Getting a git checkout...\n";
+print "==> Getting a git checkout of ompi-usnic...\n";
 do_command("mkdir $tmpdir");
 
 chdir($tmpdir);
@@ -189,29 +208,10 @@ print "==> Found git tag for build ID $build_arg: $tag\n";
 
 # Find the git hash corresponding to the commit corresponding to this
 # git tag
-my $ret;
 $ret = do_command("git cat-file -p $tag");
 $ret->{stdout}[0] =~ m/^object ([0-9a-f]{40})$/;
 my $git_hash = $1;
 print "==> Found git hash: $git_hash\n";
-
-# Run ompi_info; extract its git hash.  
-my $ompi_git_hash;
-$ret = do_command("ompi_info --parsable");
-foreach my $line (@{$ret->{stdout}}) {
-    chomp($line);
-    print "Checking line: $line\n";
-    # Future proof the script a bit: handle both the v1.6 series
-    # output and the v1.7 series/beyond output.
-    if ($line =~ m/^ompi:version:svn:git_(.+)$/ ||
-        $line =~ m/^ompi:version:repo:git_(.+)$/) {
-        $ompi_git_hash = $1;
-        last;
-    }
-}
-cleanup_and_exit(1, "Could not find ompi_info version\n")
-    if (!defined($ompi_git_hash));
-print "Found OMPI git hash: $ompi_git_hash\n";
 
 # Compare the 2 git hashes
 print "==> Comparing:
