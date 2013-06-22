@@ -1304,11 +1304,8 @@ static void module_async_event_callback(int fd, short flags, void *arg)
     /* If this is fatal, invoke the upper layer error handler to abort
        the job */
     if (fatal) {
-        orte_errmgr.abort(1, NULL);
-        /* If this returns, wait to be killed */
-        while (1) {
-            sleep(99999);
-        }
+        ompi_btl_usnic_exit();
+        /* Does not return */
     }
 }
 
