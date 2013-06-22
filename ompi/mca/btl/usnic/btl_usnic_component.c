@@ -626,8 +626,10 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
                         "btl:usnic: returning %d modules", *num_btl_modules);
 
  free_include_list:
-    while (NULL != (item = opal_list_remove_first(port_list))) {
-        OBJ_RELEASE(item);
+    if (NULL != port_list) {
+        while (NULL != (item = opal_list_remove_first(port_list))) {
+            OBJ_RELEASE(item);
+        }
     }
 
  modex_send:
