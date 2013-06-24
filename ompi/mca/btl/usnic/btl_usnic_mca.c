@@ -178,23 +178,23 @@ int ompi_btl_usnic_component_register(void)
                   "GID index to use on verbs device ports",
                   0, &mca_btl_usnic_component.gid_index, REGINT_GE_ZERO));
 
-    CHECK(reg_int("sd_num", "maximum send descriptors to post (-1 = max supported by device)",
+    CHECK(reg_int("sd_num", "maximum send descriptors to post (-1 = pre-set defaults; depends on number and type of devices available)",
                   -1, &val, REGINT_NEG_ONE_OK));
     mca_btl_usnic_component.sd_num = (int32_t) val;
 
-    CHECK(reg_int("rd_num", "number of pre-posted receive buffers (-1 = max supported by device)",
+    CHECK(reg_int("rd_num", "number of pre-posted receive buffers (-1 = pre-set defaults; depends on number and type of devices available)",
                   -1, &val, REGINT_NEG_ONE_OK));
     mca_btl_usnic_component.rd_num = (int32_t) val;
 
-    CHECK(reg_int("prio_sd_num", "maximum priority send descriptors to post (-1 = use default)",
+    CHECK(reg_int("prio_sd_num", "maximum priority send descriptors to post (-1 = pre-set defaults; depends on number and type of devices available)",
                   -1, &val, REGINT_NEG_ONE_OK));
     mca_btl_usnic_component.prio_sd_num = (int32_t) val;
 
-    CHECK(reg_int("prio_rd_num", "number of pre-posted priority receive buffers (-1 = use default)",
+    CHECK(reg_int("prio_rd_num", "number of pre-posted priority receive buffers (-1 = pre-set defaults; depends on number and type of devices available)",
                   -1, &val, REGINT_NEG_ONE_OK));
     mca_btl_usnic_component.prio_rd_num = (int32_t) val;
 
-    CHECK(reg_int("cq_num", "number of completion queue entries (-1 = max supported by the device; will error if (sd_num+rd_num)>cq_num)",
+    CHECK(reg_int("cq_num", "number of completion queue entries (-1 = pre-set defaults; depends on number and type of devices available; will error if (sd_num+rd_num)>cq_num)",
                   -1, &val, REGINT_NEG_ONE_OK));
     mca_btl_usnic_component.cq_num = (int32_t) val;
 
@@ -203,17 +203,17 @@ int ompi_btl_usnic_component_register(void)
                   100000, &val, REGINT_GE_ONE));
     mca_btl_usnic_component.retrans_timeout = val;
 
-    CHECK(reg_int("eager_limit", "Eager send limit.  If 0, use the device's default.",
-                  USNIC_DFLT_EAGER_LIMIT, &val, REGINT_GE_ZERO));
+    CHECK(reg_int("priority_limit", "Max size of \"priority\" messages (0 = use pre-set defaults; depends on number and type of devices available)",
+                  0, &val, REGINT_GE_ZERO));
+    ompi_btl_usnic_module_template.max_tiny_payload = val;
+
+    CHECK(reg_int("eager_limit", "Eager send limit (0 = use pre-set defaults; depends on number and type of devices available)",
+                  0, &val, REGINT_GE_ZERO));
     ompi_btl_usnic_module_template.super.btl_eager_limit = val;
 
-    CHECK(reg_int("rndv_eager_limit", "Eager rendezvous limit.  If 0, use the device MTU.",
+    CHECK(reg_int("rndv_eager_limit", "Eager rendezvous limit (0 = use pre-set defaults; depends on number and type of devices available)",
                   0, &val, REGINT_GE_ZERO));
     ompi_btl_usnic_module_template.super.btl_rndv_eager_limit = val;
-
-    CHECK(reg_int("max_send_size", "Max send size.  If 0, use device default.",
-                  USNIC_DFLT_MAX_SEND, &val, REGINT_GE_ZERO));
-    ompi_btl_usnic_module_template.super.btl_max_send_size = val;
 
     /* Default to bandwidth auto-detection */
     ompi_btl_usnic_module_template.super.btl_bandwidth = 0;

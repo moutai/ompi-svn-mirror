@@ -25,12 +25,16 @@
 #define OMPI_BTL_USNIC_MODULE_H
 
 /*
- * Default limits
+ * Default limits.
+ *
+ * These values obtained from empirical testing on Intel E5-2690
+ * machines with Sereno/Lexington cards through an N3546 switch.
  */
-#define USNIC_DFLT_EAGER_LIMIT (96*1024)
-#define USNIC_DFLT_MAX_SEND INT_MAX
+#define USNIC_DFLT_EAGER_LIMIT_1DEVICE (150 * 1024)
+#define USNIC_DFLT_EAGER_LIMIT_NDEVICES (25 * 1024)
 
 #include "btl_usnic_endpoint.h"
+#include "common_verbs.h"
 
 BEGIN_C_DECLS
 
@@ -70,6 +74,10 @@ typedef struct ompi_btl_usnic_channel_t {
  */
 typedef struct ompi_btl_usnic_module_t {
     mca_btl_base_module_t super;
+
+    /* Cache for use during component_init to associate a module with
+       the ompi_common_verbs_port_item_t that it came from. */
+    ompi_common_verbs_port_item_t *port;
 
     mca_btl_base_module_error_cb_fn_t pml_error_callback;
 

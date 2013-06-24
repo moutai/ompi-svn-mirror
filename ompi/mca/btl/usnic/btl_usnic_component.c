@@ -251,7 +251,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
 {
     int happy;
     mca_btl_base_module_t **btls;
-    uint32_t i, *vpi;
+    uint32_t i, j, *vpi;
     ompi_btl_usnic_module_t *module;
     opal_list_item_t *item;
     unsigned short seedv[3];
@@ -334,7 +334,9 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         goto free_include_list;
     }
 
-    /* Fill each module */
+    /* Go through the list of ports and determine if we want it or
+       not.  Create and (mostly) fill a module struct for each port
+       that we want. */
     for (i = 0, item = opal_list_get_first(port_list);
          item != opal_list_get_end(port_list) &&
              (0 == mca_btl_usnic_component.max_modules ||
@@ -383,13 +385,14 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         module = &(mca_btl_usnic_component.usnic_modules[i]);
         memcpy(module, &ompi_btl_usnic_module_template,
                sizeof(ompi_btl_usnic_module_t));
+        module->port = port;
         module->device = port->device->device;
         module->device_context = port->device->context;
         module->port_num = port->port_num;
 
         /* If we fail to query the GID, just warn and skip this port */
-        if (0 != ibv_query_gid(port->device->context, 
-                               port->port_num,
+        if (0 != ibv_query_gid(module->device_context, 
+                               module->port_num,
                                mca_btl_usnic_component.gid_index, &gid)) {
             opal_memchecker_base_mem_defined(&gid, sizeof(gid));
             orte_show_help("help-mpi-btl-usnic.txt", "ibv API failed",
@@ -406,8 +409,8 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
 
         opal_output_verbose(5, mca_btl_base_output,
                             "btl:usnic: GID for %s:%d: subnet 0x%016" PRIx64 ", interface 0x%016" PRIx64,
-                            ibv_get_device_name(port->device->device), 
-                            port->port_num, 
+                            ibv_get_device_name(module->device), 
+                            module->port_num, 
                             ntoh64(gid.global.subnet_prefix),
                             ntoh64(gid.global.interface_id));
         module->local_addr.gid = gid;
@@ -421,15 +424,15 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
                                                    module->local_addr.mac)) {
             opal_output_verbose(5, mca_btl_base_output, 
                                 "btl:usnic: did not find IP interfaces for %s; skipping",
-                                ibv_get_device_name(port->device->device));
+                                ibv_get_device_name(module->device));
             continue;
         }
 	inet_ntop(AF_INET, &module->if_ipv4_addr,
 		  my_ip_string, sizeof(my_ip_string));
 	opal_output_verbose(5, mca_btl_base_output,
 			    "btl:usnic: IP address for %s:%d: %s",
-			    ibv_get_device_name(port->device->device),
-			    port->port_num,
+			    ibv_get_device_name(module->device),
+			    module->port_num,
 			    my_ip_string);
 
         /* Get this port's bandwidth */
@@ -444,8 +447,8 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
                 orte_show_help("help-mpi-btl-usnic.txt", "verbs_port_bw failed",
                                true, 
                                orte_process_info.nodename,
-                               ibv_get_device_name(port->device->device), 
-                               port->port_num);
+                               ibv_get_device_name(module->device), 
+                               module->port_num);
                 --mca_btl_usnic_component.num_modules;
                 --i;
                 continue;
@@ -453,7 +456,8 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         }
         opal_output_verbose(5, mca_btl_base_output,
                             "btl:usnic: bandwidth for %s:%d = %u",
-                            port->device->device_name, port->port_num,
+                            ibv_get_device_name(module->device), 
+                            module->port_num,
                             module->super.btl_bandwidth);
 
         /* Query this device */
@@ -489,10 +493,11 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         }
 
         /*
-         * queue sizes for priority channel scale with # of endpoint
-         * A little bit of chicken and egg here, we really want procs*ports,
-         * but we can't know # of ports til we try to initialize, so 32xprocs
-         * is best guess.  User can always override.
+         * Queue sizes for priority channel scale with # of endpoint. A
+         * little bit of chicken and egg here, we really want
+         * procs*ports, but we can't know # of ports until we try to
+         * initialize, so 32*num_procs is best guess.  User can always
+         * override.
          */
         if (-1 == mca_btl_usnic_component.prio_sd_num) {
             module->prio_sd_num = max(128, 32*orte_process_info.num_procs) - 1;
@@ -511,62 +516,33 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
             module->prio_rd_num = device_attr.max_qp_wr;
         }
 
-        opal_output_verbose(5, mca_btl_base_output,
-                            "btl:usnic: num sqe=%d, num rqe=%d, num cqe=%d",
-                            module->sd_num,
-                            module->rd_num,
-                            module->cq_num);
-
         /* Find the max payload this port can handle */
         module->max_frag_payload =
             module->if_mtu - /* start with the MTU */
-            (24+sizeof(ompi_btl_usnic_protocol_header_t)) - /* subtract size of
-                                                           the protocol frame 
-                                                           header */
             sizeof(ompi_btl_usnic_btl_header_t); /* subtract size of
-                                                      the BTL
-                                                      header */
+                                                    the BTL header */
         /* same, but use chunk header */
         module->max_chunk_payload =
             module->if_mtu -
             sizeof(ompi_btl_usnic_protocol_header_t) -
             sizeof(ompi_btl_usnic_btl_chunk_header_t);
 
-        module->tiny_mtu = 768;
-        module->max_tiny_payload = module->tiny_mtu -
-            sizeof(ompi_btl_usnic_protocol_header_t) -
-            sizeof(ompi_btl_usnic_btl_header_t);
-
-        /* If the eager send limit is 0, initialize it to default */
-        if (0 == module->super.btl_eager_limit) {
-            /* 150k for 1 NIC, 25k for >1 NIC */
-            module->super.btl_eager_limit = USNIC_DFLT_EAGER_LIMIT;
+        /* Priorirty queue MTU and max size */
+        if (0 == module->tiny_mtu) {
+            module->tiny_mtu = 768;
+            module->max_tiny_payload = module->tiny_mtu -
+                sizeof(ompi_btl_usnic_protocol_header_t) -
+                sizeof(ompi_btl_usnic_btl_header_t);
+        } else {
+            module->tiny_mtu = module->max_tiny_payload +
+                sizeof(ompi_btl_usnic_protocol_header_t) +
+                sizeof(ompi_btl_usnic_btl_header_t);
         }
-
-        opal_output_verbose(5, mca_btl_base_output,
-                            "btl:usnic: eager limit %s:%d = %" PRIsize_t,
-                            port->device->device_name, port->port_num,
-                            module->super.btl_eager_limit);
 
         /* If the eager rndv limit is 0, initialize it to default */
         if (0 == module->super.btl_rndv_eager_limit) {
             module->super.btl_rndv_eager_limit = 500;
         }
-
-        opal_output_verbose(5, mca_btl_base_output,
-                            "btl:usnic: eager rndv limit %s:%d = %" PRIsize_t,
-                            port->device->device_name, port->port_num,
-                            module->super.btl_rndv_eager_limit);
-
-        /* send size is unlimited, we handle fragmentation */
-        if (module->super.btl_max_send_size == 0) {
-            module->super.btl_max_send_size = USNIC_DFLT_MAX_SEND;
-        }
-
-        opal_output_verbose(5, mca_btl_base_output,
-                            "btl:usnic: max send limit %s:%d = %" PRIsize_t,
-                            port->device->device_name, port->port_num,
-                            module->super.btl_max_send_size);
 
         /* Make a hash table of senders */
         OBJ_CONSTRUCT(&module->senders, opal_hash_table_t);
@@ -575,26 +551,96 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
            here.  I think the long-term solution is to write a better
            hash table... :-( */
         opal_hash_table_init(&module->senders, 4096);
-        
+
+        /* Let this module advance to the next round! */
+        btls[i] = &(module->super);
+    }
+
+    /* Do final module initialization with anything that required
+       knowing how many modules there would be. */
+    for (j = i = 0; i < mca_btl_usnic_component.num_modules; ++i, ++j) {
+        module = (ompi_btl_usnic_module_t*) btls[i];
+
+        /* If the eager send limit is 0, initialize it to default */
+        if (0 == module->super.btl_eager_limit) {
+            /* 150k for 1 module, 25k for >1 module */
+            if (1 == mca_btl_usnic_component.num_modules) {
+                module->super.btl_eager_limit = 
+                    USNIC_DFLT_EAGER_LIMIT_1DEVICE;
+            } else {
+                module->super.btl_eager_limit = 
+                    USNIC_DFLT_EAGER_LIMIT_NDEVICES;
+            }
+        }
+ 
+        /* Since we emulate PUT, max_send_size can be same as
+           eager_limit */
+        module->super.btl_max_send_size = module->super.btl_eager_limit;
+
         /* Initialize this module's state */
         if (ompi_btl_usnic_module_init(module) != OMPI_SUCCESS) {
             opal_output_verbose(5, mca_btl_base_output,
                                 "btl:usnic: failed to init module for %s:%d",
-                                port->device->device_name, port->port_num);
+                                ibv_get_device_name(module->device),
+                                module->port_num);
             --mca_btl_usnic_component.num_modules;
-            --i;
+            --j;
             continue;
         }
 
-        /* Ok, this is a good port -- we want it.  Save it.  And tell
-           the common_verbs_device to not free the device context when
-           the list is freed. */
-        port->device->destructor_free_context = false;
-        btls[i] = &(module->super);
+        /**** If we get here, this is a good module/port -- we want
+              it ****/
 
+        /* Tell the common_verbs_device to not free the device context
+           when the list is freed.  Then free the port pointer cached
+           on this module; it was only used to carry this
+           module<-->port association down to this second loop.  The
+           port item will be freed later, and is of no more use to the
+           module. */
+        module->port->device->destructor_free_context = false;
+        module->port = NULL;
+
+        /* If module_init() failed for any prior module, this will be
+           a down shift in the btls[] array.  Otherwise, it's an
+           overwrite of the same value. */
+        btls[j] = &(module->super);
+
+        /* Output all of this module's values. */
+        opal_output_verbose(5, mca_btl_base_output,
+                            "btl:usnic: num sqe=%d, num rqe=%d, num cqe=%d",
+                            module->sd_num,
+                            module->rd_num,
+                            module->cq_num);
+        opal_output_verbose(5, mca_btl_base_output,
+                            "btl:usnic: priority MTU %s:%d = %d",
+                            ibv_get_device_name(module->device),
+                            module->port_num,
+                            module->tiny_mtu);
+        opal_output_verbose(5, mca_btl_base_output,
+                            "btl:usnic: priority limit %s:%d = %" PRIsize_t,
+                            ibv_get_device_name(module->device),
+                            module->port_num,
+                            module->max_tiny_payload);
+        opal_output_verbose(5, mca_btl_base_output,
+                            "btl:usnic: eager limit %s:%d = %" PRIsize_t,
+                            ibv_get_device_name(module->device),
+                            module->port_num,
+                            module->super.btl_eager_limit);
+        opal_output_verbose(5, mca_btl_base_output,
+                            "btl:usnic: eager rndv limit %s:%d = %" PRIsize_t,
+                            ibv_get_device_name(module->device),
+                            module->port_num,
+                            module->super.btl_rndv_eager_limit);
+        opal_output_verbose(5, mca_btl_base_output,
+                            "btl:usnic: max send size %s:%d = %" PRIsize_t 
+                            " (not overrideable)",
+                            ibv_get_device_name(module->device),
+                            module->port_num,
+                            module->super.btl_max_send_size);
         opal_output_verbose(5, mca_btl_base_output,
                             "btl:usnic: exclusivity %s:%d = %d",
-                            port->device->device_name, port->port_num,
+                            ibv_get_device_name(module->device),
+                            module->port_num,
                             module->super.btl_exclusivity);
     }
 
@@ -606,7 +652,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
 
        That being said, if we ended up with zero acceptable ports,
        then free everything. */
-    if (0 == i) {
+    if (0 == j) {
         if (NULL != mca_btl_usnic_component.usnic_modules) {
             free(mca_btl_usnic_component.usnic_modules);
             mca_btl_usnic_component.usnic_modules = NULL;
@@ -630,6 +676,7 @@ static mca_btl_base_module_t** usnic_component_init(int* num_btl_modules,
         while (NULL != (item = opal_list_remove_first(port_list))) {
             OBJ_RELEASE(item);
         }
+        OBJ_RELEASE(port_list);
     }
 
  modex_send:
