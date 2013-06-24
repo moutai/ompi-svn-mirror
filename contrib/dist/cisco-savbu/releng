@@ -258,6 +258,8 @@ do_command("make dist");
 
 # Make the SRPM.  Use our own $HOME/.rpmmacros file.
 print "=== Creating RPMS:\n";
+print "*** Making $ENV{HOME}.rpmmacros\n";
+my $rpmbuilddir = "$ENV{HOME}/rpmbuild";
 my $prev_rpmmacros;
 if (-f "$ENV{HOME}/.rpmmacros") {
     $prev_rpmmacros = "$ENV{HOME}/.rpmmacros-ompi-usnic-build-save";
@@ -266,33 +268,35 @@ if (-f "$ENV{HOME}/.rpmmacros") {
 }
 open(M, ">$ENV{HOME}/.rpmmacros") 
     || die "Can't open $ENV{HOME}/.rpmmacros";
-print M "%_topdir $ENV{HOME}/RPMS
+print M "%_topdir $rpmbuilddir
 %_vendorinfo Cisco Systems, Inc.
 %_packager Cisco Systems, Inc.
 %_distribution www.cisco.com\n";
 close(M);
 
-# Make $HOME/RPMS tree if it doesn't already exist
-mkdir("$ENV{HOME}/RPMS");
-mkdir("$ENV{HOME}/RPMS/BUILD");
-mkdir("$ENV{HOME}/RPMS/BUILDROOT");
-mkdir("$ENV{HOME}/RPMS/RPMS");
-mkdir("$ENV{HOME}/RPMS/SOURCES");
-mkdir("$ENV{HOME}/RPMS/SPECS");
-mkdir("$ENV{HOME}/RPMS/SRPMS");
+# Make $rpmbuilddir tree if it doesn't already exist
+print "*** Making $rpmbuilddir tree\n";
+mkdir("$rpmbuilddir");
+mkdir("$rpmbuilddir/BUILD");
+mkdir("$rpmbuilddir/BUILDROOT");
+mkdir("$rpmbuilddir/RPMS");
+mkdir("$rpmbuilddir/SOURCES");
+mkdir("$rpmbuilddir/SPECS");
+mkdir("$rpmbuilddir/SRPMS");
 
 # Copy the files to the right places
-do_command("cp openmpi-$version.tar.bz2 $ENV{HOME}/RPMS/SOURCES");
+do_command("cp openmpi-$version.tar.bz2 $rpmbuilddir/SOURCES");
 
 # Preprocess the specfile and put it in the right place
+print "*** Processing and copying specfile\n";
 open(SPEC, "contrib/dist/cisco-savbu/openmpi-cisco.spec");
 my $specfile;
 $specfile .= $_
     while (<SPEC>);
 close(SPEC);
-$specfile =~ s/\$VERSION/$version/g;
+$specfile =~ s/\@OMPI_VERSION\@/$version/g;
 
-my $specdest = "$ENV{HOME}/RPMS/SPECS/openmpi-cisco.spec";
+my $specdest = "$rpmbuilddir/SPECS/openmpi-cisco.spec";
 unlink($specdest);
 open(SPEC, ">$specdest")
     || die "Can't open $specdest";
@@ -302,6 +306,7 @@ close(SPEC);
 # Build the SRPM
 my $rpmbuild_options;
 print "  = Building SRPM\n";
+$rpmbuild_options = "--define \"ompi_version $version\"";
 do_command("rpmbuild $rpmbuild_options -bs $specdest");
 
 # Build the RPMs.  Ensure to fail if we don't have usnic support.
@@ -323,6 +328,8 @@ $config_options .= " --disable-vt --disable-mpi-f77 --disable-mpi-cxx"
     if ($debug_arg);
 
 $rpmbuild_options = "--define \"mflags -j32\"";
+$rpmbuild_options = "$rpmbuild_options --define \"ompi_release \"";
+$rpmbuild_options = "$rpmbuild_options --define \"ompi_version $version\"";
 $rpmbuild_options = "$rpmbuild_options --define \"configure_options $config_options --enable-mpi-ext=all LDFLAGS=-Wl,--build-id\"";
 
 print "  = Building RPM\n";
@@ -341,12 +348,12 @@ my $pwd = getcwd();
 print "  = Tarballs in $pwd:\n";
 system("ls -1 openmpi*$version*");
 
-my $srpmdir = "$ENV{HOME}/RPMS/SRPMS";
+my $srpmdir = "$rpmbuilddir/SRPMS";
 print "  = SRPM in $srpmdir:\n";
 chdir($srpmdir);
 system("ls -1 openmpi-$version-*.src.rpm");
 
-my $rpmdir = "$ENV{HOME}/RPMS/RPMS/x86_64";
+my $rpmdir = "$rpmbuilddir/RPMS/x86_64";
 print "  = RPMs in $rpmdir:\n";
 chdir($rpmdir);
 system("ls -1 openmpi*$version-*.rpm");

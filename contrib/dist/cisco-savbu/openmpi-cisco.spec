@@ -45,6 +45,16 @@
 #    --define 'mflags -j32' ...
 #
 #############################################################################
+#
+# This spec file specifically exports the following configurable options:
+#
+# configure_options: options passed to Open MPI's configure script.
+#     Defaults to LDFLAGS=-Wl,--build-id.
+#
+# prefix: location to install Open MPI.
+#     Defaults to /opt/cisco/openmpi.
+#
+#############################################################################
 
 %{!?configure_options: %define configure_options LDFLAGS=-Wl,--build-id}
 
@@ -58,9 +68,13 @@
 # If the user *does* --define override "prefix", then use that value
 %{?prefix:
 %define cisco_dir %{prefix}
-%define ompi_script_dir %{datadir}
+%define ompi_script_dir %{_datadir}
 %define _prefix %{prefix}
 }
+
+# If the builder did not define a version, then default to adding the
+# username/time/datestamp.  This identifies customer-made builds.
+%{!?ompi_version: %define ompi_version @OMPI_VERSION@.%{expand:%(echo $USER)}_%{expand:%(date +%Y%m%d_%H%M)}}
 
 #############################################################################
 #
@@ -86,11 +100,11 @@
 
 Summary: A powerful implementation of MPI
 Name: openmpi
-Version: $VERSION
+Version: %{ompi_version}
 Release: 1
 License: BSD
 Group: Development/Libraries
-Source: openmpi-%{version}.tar.bz2
+Source: openmpi-@OMPI_VERSION@.tar.bz2
 Packager: Cisco Systems, Inc.
 Vendor: Cisco Systems, Inc.
 Distribution: www.cisco.com
@@ -120,7 +134,7 @@ incorporated in upstream Open MPI community releases.
 # there that are not meant to be packaged.
 rm -rf $RPM_BUILD_ROOT
 
-%setup -q -n openmpi-%{version}
+%setup -q -n openmpi-@OMPI_VERSION@
 
 #############################################################################
 #
@@ -218,7 +232,7 @@ EOF
 cd /tmp
 
 # Remove installed driver after rpm build finished
-rm -rf $RPM_BUILD_DIR/openmpi-%{version} 
+rm -rf $RPM_BUILD_DIR/openmpi-@OMPI_VERSION@
 
 test "x$RPM_BUILD_ROOT" != "x" && rm -rf $RPM_BUILD_ROOT
 
