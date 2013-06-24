@@ -258,8 +258,11 @@ todo: sf_size redundant with ack_bytes_left ?
 
 todo: BW hole in -np 32 Exchange on 32 nodes
     dip right at eager limit
+    exchange wants different higher limit...
 
 todo: odd results with -np 16 Gather -npmin 16 on 16 nodes
+    something changes at 1024 bytes
+
 todo: test with packet loss/reording
 todo: get QA running IMB with .DCHECK 
 todo: do our own 256 process .DCHECK run on 32 nodes
@@ -270,9 +273,8 @@ todo: thorough review of retransmission policy vs reordering
 todo: progression thread?
 todo: weird startup delay issue with periodic stats enabled 
 
-todo: maintaining vergs SG list and PML SG list in parallel is awkward
+todo: maintaining verbs SG list and PML SG list in parallel is awkward
     probably best to just fill in verbs SG list all at once at last possible
     moment instead of piecemeal?  or always use verbs SG internally?
     or use compile-time wizardry to make OMPI SG list and verbs SG list
     be byte compatible?
-
